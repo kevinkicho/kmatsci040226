@@ -18,27 +18,6 @@ import predict as ml_mod
 load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 local_db.init_db()
 
-# ── Force sidebar open on every page load ─────────────────────────────────────
-st.components.v1.html("""<script>
-(function(){
-    var p = window.parent;
-    try {
-        var ls = p.localStorage;
-        for (var i = ls.length - 1; i >= 0; i--) {
-            var k = ls.key(i);
-            if (k && (k.includes('sidebar') || k.includes('Sidebar') || k.includes('collapsed')))
-                ls.removeItem(k);
-        }
-    } catch(e){}
-    var tries = 0;
-    var iv = setInterval(function(){
-        var btn = p.document.querySelector('[data-testid="collapsedControl"]');
-        if (btn) { btn.click(); clearInterval(iv); }
-        if (++tries > 30) clearInterval(iv);
-    }, 150);
-})();
-</script>""", height=1)
-
 st.set_page_config(page_title="MatSci Explorer", page_icon="⚛",
                    layout="wide", initial_sidebar_state="expanded")
 
@@ -81,7 +60,9 @@ section[data-testid="stSidebar"] > div:first-child { padding-top:0 !important; }
 /* KPI */
 .krow { display:flex; gap:4px; margin:2px 0 4px; flex-wrap:nowrap; }
 .kpi  { background:#161b22; border:1px solid #21262d; border-radius:5px;
-  padding:3px 8px; flex:1; min-width:0; }
+  padding:3px 8px; flex:1; min-width:0; position:relative; }
+.kpi-tip { cursor:help; }
+.kpi-tip:hover .ttip-box { visibility:visible; opacity:1; }
 .kl   { font-size:0.55rem; color:#8b949e; text-transform:uppercase; letter-spacing:.06em;
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .kv   { font-size:0.88rem; font-weight:600; color:#e6edf3;
@@ -127,15 +108,32 @@ section[data-testid="stSidebar"] > div:first-child { padding-top:0 !important; }
 [data-testid="stSidebar"] .stSelectbox > label {
   font-size:0.50rem !important; color:#484f58 !important;
   text-transform:uppercase; letter-spacing:.1em;
-  margin-bottom:1px !important; line-height:1.2 !important; }
+  margin-bottom:1px !important; line-height:1.2 !important;
+  white-space:nowrap !important; overflow:hidden !important;
+  text-overflow:ellipsis !important; cursor:help !important; }
+/* Hide the ? help icon — label itself is the hover target */
+[data-testid="stSidebar"] .stSelectbox [data-testid="stTooltipIcon"] {
+  display:none !important; }
 [data-testid="stSidebar"] .stSelectbox [data-baseweb="select"] > div:first-child {
   min-height:24px !important; font-size:0.70rem !important;
   padding:2px 6px !important;
   background:#0d1117 !important; border-color:#21262d !important; }
 [data-testid="stSidebar"] .stSelectbox [data-baseweb="select"] > div:first-child:hover {
   border-color:#30363d !important; }
+/* Prevent selected value text from wrapping inside the dropdown box */
+[data-testid="stSidebar"] .stSelectbox [data-baseweb="select"] span {
+  white-space:nowrap !important; overflow:hidden !important;
+  text-overflow:ellipsis !important; }
 [data-testid="stSidebar"] .stColumns { gap:6px !important; }
 [data-testid="stSidebar"] .stColumn  { padding:0 2px !important; }
+
+/* ── Multiselect: show all selected pills (no "+N more" truncation) ── */
+[data-testid="stMultiSelect"] [data-baseweb="select"] > div:first-child {
+  height: auto !important;
+  max-height: none !important;
+  flex-wrap: wrap !important;
+  overflow: visible !important;
+}
 
 /* ── Hover tooltip on stat-card labels ───────────────────── */
 .sc-l { position:relative; cursor:help; }
@@ -550,6 +548,10 @@ if "ashby_mode" not in st.session_state:
     st.session_state.ashby_mode = False
 if "compare_mode" not in st.session_state:
     st.session_state.compare_mode = False
+if "browse_mode" not in st.session_state:
+    st.session_state.browse_mode = False
+if "browse_page" not in st.session_state:
+    st.session_state.browse_page = 0
 if "compare_mp_id" not in st.session_state:
     st.session_state.compare_mp_id = None
 if "compare_name" not in st.session_state:
@@ -558,6 +560,13 @@ if "compare_curated" not in st.session_state:
     st.session_state.compare_curated = None
 
 # ── URL query-param sync (enables browser back/forward) ───────────────────────
+# On a fresh server start the browser may still have ?mp=... from the prior
+# session.  We clear it once per Python session so the app starts at the
+# default compound, then re-sync as the user navigates.
+if "session_initialized" not in st.session_state:
+    st.session_state.session_initialized = True
+    st.query_params.clear()
+
 _url_mp = st.query_params.get("mp")
 if _url_mp and _url_mp != st.session_state.mp_id:
     _url_row = local_db.get_material_row(_url_mp)
@@ -734,11 +743,11 @@ def na(msg="Not available"): return f'<div class="na">{msg}</div>'
 def kpi(label, value, unit="", tooltip=""):
     tt = tooltip or _KPI_TIPS.get(label, "")
     if tt:
-        lbl_html = (f'<div class="kl ttip" style="position:relative;display:block;cursor:help;">'
-                    f'{label}<span class="ttip-box">{tt}</span></div>')
-    else:
-        lbl_html = f'<div class="kl">{label}</div>'
-    return (f'<div class="kpi">{lbl_html}'
+        return (f'<div class="kpi kpi-tip">'
+                f'<div class="kl">{label}</div>'
+                f'<div class="kv">{value}<span class="ku"> {unit}</span></div>'
+                f'<span class="ttip-box">{tt}</span></div>')
+    return (f'<div class="kpi"><div class="kl">{label}</div>'
             f'<div class="kv">{value}<span class="ku"> {unit}</span></div></div>')
 
 def section_hdr(text, tooltip="", style=""):
@@ -861,39 +870,49 @@ def build_radar_chart(row_a: dict, row_b: dict | None,
 
 # ── Applications badges ───────────────────────────────────────────────────────
 _APP_RULES = [
-    # (label, color_hex, check_fn)
-    ("Solar cell",          "#f9ca24", lambda r, el: (
-        r.get("bandgap") is not None and 0.9 <= r["bandgap"] <= 1.8
-        and r.get("is_direct_gap") == 1)),
-    ("Wide-gap LED",        "#6c5ce7", lambda r, el: (
-        r.get("bandgap") is not None and 2.5 <= r["bandgap"] <= 4.5
-        and r.get("is_direct_gap") == 1)),
-    ("Permanent magnet",    "#e17055", lambda r, el: (
-        r.get("ordering") in ("FM","FiM")
-        and r.get("total_magnetization") is not None
-        and r["total_magnetization"] > 5.0)),
-    ("Thermal barrier",     "#fd79a8", lambda r, el: (
-        r.get("thermal_conductivity") is not None and r["thermal_conductivity"] < 5.0
-        and r.get("young_modulus") is not None and r["young_modulus"] > 100)),
-    ("Superconductor hint", "#74b9ff", lambda r, el: (
-        r.get("bandgap") == 0
-        and r.get("energy_above_hull") is not None
-        and r["energy_above_hull"] < 0.05)),
-    ("Optical coating",     "#00cec9", lambda r, el: (
-        r.get("refractive_index") is not None and 1.3 <= r["refractive_index"] <= 2.5)),
-    ("Aerospace structural",  "#a29bfe", lambda r, el: (
-        r.get("young_modulus") is not None and r.get("density") is not None
-        and r["density"] > 0 and (r["young_modulus"] / r["density"]) > 80)),
-    ("Thermoelectric hint", "#55efc4", lambda r, el: (
-        r.get("bandgap") is not None and 0.1 < r["bandgap"] < 1.5
-        and r.get("thermal_conductivity") is not None
-        and r["thermal_conductivity"] < 3.0)),
-    ("Battery cathode hint","#fdcb6e", lambda r, el: (
-        bool(el) and any(e in {"Fe","Co","Ni","Mn","V","Ti","Cr","Mo"} for e in el)
-        and "O" in el
-        and r.get("bandgap") is not None and 0 < r["bandgap"] < 4)),
-    ("High dielectric",     "#e84393", lambda r, el: (
-        r.get("e_total") is not None and r["e_total"] > 20)),
+    # (label, color_hex, check_fn, tooltip)
+    ("Solar cell", "#f9ca24",
+     lambda r, el: (r.get("bandgap") is not None and 0.9 <= r["bandgap"] <= 1.8
+                    and r.get("is_direct_gap") == 1),
+     "Direct band gap 0.9–1.8 eV — matches the solar spectrum peak. Direct gap means photons are absorbed efficiently without a phonon assist. GaAs (1.42 eV) and CdTe (1.44 eV) are real-world examples."),
+    ("Wide-gap LED", "#6c5ce7",
+     lambda r, el: (r.get("bandgap") is not None and 2.5 <= r["bandgap"] <= 4.5
+                    and r.get("is_direct_gap") == 1),
+     "Direct band gap 2.5–4.5 eV — emission falls in the visible-to-UV range. GaN (3.4 eV) enables blue LEDs; AlGaN alloys cover UV. Direct gap is required for efficient electroluminescence."),
+    ("Permanent magnet", "#e17055",
+     lambda r, el: (r.get("ordering") in ("FM","FiM")
+                    and r.get("total_magnetization") is not None
+                    and r["total_magnetization"] > 5.0),
+     "Ferromagnetic or ferrimagnetic with total magnetization > 5 μB/f.u. High magnetization + high coercivity = high energy product (B·H)max. Used in EV motors, MRI, wind turbines."),
+    ("Thermal barrier", "#fd79a8",
+     lambda r, el: (r.get("thermal_conductivity") is not None and r["thermal_conductivity"] < 5.0
+                    and r.get("young_modulus") is not None and r["young_modulus"] > 100),
+     "Low thermal conductivity (< 5 W/m·K) + stiff (E > 100 GPa). Thermal barrier coatings (TBCs) on turbine blades insulate metal from combustion heat. ZrO₂-based ceramics are the standard."),
+    ("Superconductor hint", "#74b9ff",
+     lambda r, el: (r.get("bandgap") == 0
+                    and r.get("energy_above_hull") is not None
+                    and r["energy_above_hull"] < 0.05),
+     "Metal (zero band gap) that is thermodynamically stable (hull < 0.05 eV/atom). DFT can't predict Tc directly, but stability + metallic character are necessary conditions for superconductivity."),
+    ("Optical coating", "#00cec9",
+     lambda r, el: (r.get("refractive_index") is not None and 1.3 <= r["refractive_index"] <= 2.5),
+     "Refractive index 1.3–2.5 — useful range for anti-reflection coatings, optical filters, and waveguides. Reflectivity at normal incidence = ((n−1)/(n+1))². MgF₂ (n=1.38) and TiO₂ (n=2.5) are common coating materials."),
+    ("Aerospace structural", "#a29bfe",
+     lambda r, el: (r.get("young_modulus") is not None and r.get("density") is not None
+                    and r["density"] > 0 and (r["young_modulus"] / r["density"]) > 80),
+     "Specific stiffness E/ρ > 80 GPa·cm³/g — lightweight yet stiff. Carbon fiber composites reach ~200; Al alloys ~26; steel ~26. High specific stiffness is critical for launch vehicle structures and satellite frames."),
+    ("Thermoelectric hint", "#55efc4",
+     lambda r, el: (r.get("bandgap") is not None and 0.1 < r["bandgap"] < 1.5
+                    and r.get("thermal_conductivity") is not None
+                    and r["thermal_conductivity"] < 3.0),
+     "Narrow gap (0.1–1.5 eV) + low thermal conductivity (< 3 W/m·K). Good thermoelectrics need high Seebeck coefficient S (from narrow gap), high electrical conductivity, and low κ — competing demands often satisfied by heavy, complex structures like Bi₂Te₃."),
+    ("Battery cathode hint", "#fdcb6e",
+     lambda r, el: (bool(el) and any(e in {"Fe","Co","Ni","Mn","V","Ti","Cr","Mo"} for e in el)
+                    and "O" in el
+                    and r.get("bandgap") is not None and 0 < r["bandgap"] < 4),
+     "Contains a redox-active transition metal (Fe/Co/Ni/Mn/V…) + oxygen + has a band gap (not metallic). Li-ion cathodes store charge by oxidizing/reducing the metal as Li⁺ intercalates. LiFePO₄ and LiCoO₂ are the commercial standards."),
+    ("High dielectric", "#e84393",
+     lambda r, el: (r.get("e_total") is not None and r["e_total"] > 20),
+     "Total static dielectric constant ε > 20. High-k dielectrics store more charge per unit voltage — used in capacitors, DRAM, and gate oxides to replace SiO₂ and reduce leakage current at smaller node sizes."),
 ]
 
 def build_applications(row: dict) -> str:
@@ -905,10 +924,10 @@ def build_applications(row: dict) -> str:
         el = set()
 
     found = []
-    for label, color, check in _APP_RULES:
+    for label, color, check, tip_text in _APP_RULES:
         try:
             if check(row, el):
-                found.append((label, color))
+                found.append((label, color, tip_text))
         except Exception:
             pass
 
@@ -918,9 +937,10 @@ def build_applications(row: dict) -> str:
                 f'more properties needed (run fetch.py to fill in mechanical/dielectric data).</div>')
 
     badges = "".join(
-        f'<span class="app-badge">'
-        f'<span class="ab-dot" style="background:{c};"></span>{lbl}</span>'
-        for lbl, c in found
+        f'<span class="app-badge ttip">'
+        f'<span class="ab-dot" style="background:{c};"></span>{lbl}'
+        f'<span class="ttip-box">{tt}</span></span>'
+        for lbl, c, tt in found
     )
     return (f'<div style="padding:3px 0;">{badges}</div>'
             f'<div style="font-size:0.60rem;color:#484f58;margin-top:4px;">'
@@ -1417,9 +1437,11 @@ def render_crystal(structure, accent, w=460, h=330):
     sup = structure * (na, nb, nc)
     cif = json.dumps(str(CifWriter(sup, symprec=None)))
     uid = f"v{abs(hash(structure.formula))%999999}"
+    w_css = f"{w}px" if isinstance(w, int) else w   # e.g. "100%" or "430px"
     return f"""<!DOCTYPE html><html><head>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/3Dmol/2.4.2/3Dmol-min.js"></script>
-<style>body{{margin:0;background:#0d1117;overflow:hidden}}#{uid}{{width:{w}px;height:{h}px}}</style>
+<style>body{{margin:0;background:#0d1117;overflow:hidden}}
+#{uid}{{width:{w_css};height:{h}px}}</style>
 </head><body><div id="{uid}"></div><script>
 var v=$3Dmol.createViewer(document.getElementById('{uid}'),{{backgroundColor:'#0d1117'}});
 v.addModel({cif},'cif');
@@ -1867,13 +1889,19 @@ def render_compare_page(mp_a, name_a, curated_a, mp_b, name_b, curated_b, api_ke
 
     # ── Crystal system summary tags ────────────────────────────────────────────
     def _sym_badge(row, curated, accent):
+        src = curated if curated else row
+        if not src:
+            return ""
         parts = []
-        if curated:
-            parts.append(f'<span style="color:{accent};font-weight:600;">{curated.get("crystal_system","")}</span>')
-            parts.append(f'<span style="color:#8b949e;">{curated.get("space_group","")}</span>')
-        elif row:
-            parts.append(f'<span style="color:{accent};font-weight:600;">{row.get("crystal_system","")}</span>')
-            parts.append(f'<span style="color:#8b949e;">{row.get("space_group","")}</span>')
+        cs = src.get("crystal_system", "")
+        sg = src.get("space_group", "")
+        if cs:
+            cs_tt = _CS_TIPS.get(cs.lower(), f"<b>{cs}</b> — one of the 7 crystal systems.")
+            parts.append(f'<span class="ttip" style="color:{accent};font-weight:600;cursor:help;">'
+                         f'{cs}<span class="ttip-box">{cs_tt}</span></span>')
+        if sg:
+            parts.append(f'<span class="ttip" style="color:#8b949e;cursor:help;">'
+                         f'{sg}<span class="ttip-box">{_sg_tip(sg)}</span></span>')
         return " · ".join(parts)
 
     st.markdown(
@@ -1888,8 +1916,8 @@ def render_compare_page(mp_a, name_a, curated_a, mp_b, name_b, curated_b, api_ke
         st.markdown(f'<div style="font-size:0.65rem;color:{accent_a};font-weight:600;margin-bottom:3px;">{fa}</div>',
                     unsafe_allow_html=True)
         if struct_a:
-            st.components.v1.html(
-                render_crystal(struct_a, accent_a, w=430, h=280),
+            st.iframe("data:text/html;base64," + base64.b64encode(
+                render_crystal(struct_a, accent_a, w=430, h=280).encode()).decode(),
                 height=295)
             lat = struct_a.lattice
             st.markdown(f'<div style="font-size:0.62rem;color:#8b949e;">a={lat.a:.3f} b={lat.b:.3f} c={lat.c:.3f} Å · {struct_a.num_sites} sites</div>',
@@ -1908,8 +1936,8 @@ def render_compare_page(mp_a, name_a, curated_a, mp_b, name_b, curated_b, api_ke
         st.markdown(f'<div style="font-size:0.65rem;color:{accent_b};font-weight:600;margin-bottom:3px;">{fb}</div>',
                     unsafe_allow_html=True)
         if struct_b:
-            st.components.v1.html(
-                render_crystal(struct_b, accent_b, w=430, h=280),
+            st.iframe("data:text/html;base64," + base64.b64encode(
+                render_crystal(struct_b, accent_b, w=430, h=280).encode()).decode(),
                 height=295)
             lat = struct_b.lattice
             st.markdown(f'<div style="font-size:0.62rem;color:#8b949e;">a={lat.a:.3f} b={lat.b:.3f} c={lat.c:.3f} Å · {struct_b.num_sites} sites</div>',
@@ -2014,6 +2042,24 @@ with st.sidebar:
                                 label_visibility="collapsed")
     search_q = st.text_input("Search", placeholder="Search formula / mp-id…",
                              label_visibility="collapsed")
+
+    # ── Mode buttons — always visible at the top ───────────────────────────
+    _mc1, _mc2 = st.columns(2, gap="small")
+    with _mc1:
+        _ashby_lbl = "Ashby ✦" if st.session_state.ashby_mode else "Ashby Charts"
+        if st.button(_ashby_lbl, key="ashby_top", use_container_width=True):
+            st.session_state.ashby_mode   = not st.session_state.ashby_mode
+            st.session_state.compare_mode = False
+            st.session_state.browse_mode  = False
+            st.rerun()
+    with _mc2:
+        _browse_lbl = "Browse ✦" if st.session_state.browse_mode else "Browse All"
+        if st.button(_browse_lbl, key="browse_top", use_container_width=True):
+            st.session_state.browse_mode  = not st.session_state.browse_mode
+            st.session_state.ashby_mode   = False
+            st.session_state.compare_mode = False
+            st.session_state.browse_page  = 0
+            st.rerun()
 
     # ── Fetch any MP compound ──────────────────────────────────────────────
     with st.expander("Fetch any compound", expanded=False):
@@ -2153,7 +2199,8 @@ with st.sidebar:
                         None,
                     )
                     default_idx = (formulas.index(current_formula) + 1) if current_formula else 0
-                    chosen = st.selectbox(hdr, OPTIONS, index=default_idx, key=f"dd_{cat}",
+                    chosen = st.selectbox(hdr, OPTIONS, index=default_idx,
+                                         key=f"dd_{cat}",
                                          help=_CAT_TIPS.get(cat, ""))
                     if chosen != "—":
                         data_map = {d["formula"]: d for _, d in items}
@@ -2220,11 +2267,6 @@ with st.sidebar:
             st.session_state.compare_curated = st.session_state.curated_data
             st.rerun()
 
-    ashby_lbl = "Ashby Charts  (active)" if st.session_state.ashby_mode else "Ashby Charts"
-    if st.button(ashby_lbl, width="stretch"):
-        st.session_state.ashby_mode  = not st.session_state.ashby_mode
-        st.session_state.compare_mode = False
-        st.rerun()
     st.divider()
     db_info = local_db.stats()
     st.caption(
@@ -2311,7 +2353,164 @@ if st.session_state.compare_mode and st.session_state.compare_mp_id:
         st.warning("Select a different compound to compare against the pinned one.")
         st.session_state.compare_mode = False
 
-if st.session_state.ashby_mode:
+if st.session_state.browse_mode:
+    _BROWSE_COLS = {
+        "Formula":          "formula",
+        "Crystal System":   "crystal_system",
+        "Space Group":      "space_group",
+        "Band Gap (eV)":    "bandgap",
+        "Density (g/cm³)":  "density",
+        "Young's E (GPa)":  "young_modulus",
+        "Formation E":      "formation_energy_per_atom",
+        "Hull E":           "energy_above_hull",
+        "Ordering":         "ordering",
+        "Dielectric ε":     "e_total",
+    }
+    PAGE_SIZE = 50
+
+    # ── Controls row ──────────────────────────────────────────────────────────
+    _bc1, _bc2, _bc3, _bc4 = st.columns([2, 2, 2, 1], gap="small")
+    with _bc1:
+        _bq = st.text_input("Filter formula / mp-id", placeholder="e.g. Ti, mp-149",
+                            key="browse_q", label_visibility="collapsed")
+    with _bc2:
+        _cs_opts = ["All crystal systems"] + sorted([
+            r[0] for r in local_db.get_conn().execute(
+                "SELECT DISTINCT crystal_system FROM materials "
+                "WHERE crystal_system IS NOT NULL ORDER BY crystal_system"
+            ).fetchall()
+        ])
+        _bcs = st.selectbox("Crystal system", _cs_opts, key="browse_cs",
+                            label_visibility="collapsed")
+    with _bc3:
+        _sort_col = st.selectbox("Sort by", list(_BROWSE_COLS.keys()),
+                                 index=3, key="browse_sort",
+                                 label_visibility="collapsed")
+    with _bc4:
+        _sort_asc = st.checkbox("↑ Asc", value=True, key="browse_asc")
+
+    # ── Query ─────────────────────────────────────────────────────────────────
+    @st.cache_data(show_spinner=False)
+    def _browse_query(q, cs, sort_db_col, asc, page):
+        wheres = []
+        params = []
+        if q:
+            wheres.append("(formula LIKE ? OR mp_id LIKE ?)")
+            params += [f"%{q}%", f"%{q}%"]
+        if cs and cs != "All crystal systems":
+            wheres.append("crystal_system = ?")
+            params.append(cs)
+        where_sql = ("WHERE " + " AND ".join(wheres)) if wheres else ""
+        order = "ASC" if asc else "DESC"
+        null_last = f"{sort_db_col} IS NULL, {sort_db_col} {order}"
+        offset = page * PAGE_SIZE
+        cols = ", ".join(["mp_id", "formula", "crystal_system", "space_group",
+                          "bandgap", "density", "young_modulus",
+                          "formation_energy_per_atom", "energy_above_hull",
+                          "ordering", "e_total"])
+        with local_db.get_conn() as conn:
+            conn.row_factory = __import__("sqlite3").Row
+            total = conn.execute(
+                f"SELECT COUNT(*) FROM materials {where_sql}", params
+            ).fetchone()[0]
+            rows = conn.execute(
+                f"SELECT {cols} FROM materials {where_sql} "
+                f"ORDER BY {null_last} LIMIT {PAGE_SIZE} OFFSET {offset}",
+                params
+            ).fetchall()
+        return [dict(r) for r in rows], total
+
+    _db_sort = _BROWSE_COLS[_sort_col]
+    _filter_sig = (_bq, _bcs, _db_sort, _sort_asc)
+    if st.session_state.get("_browse_last_filter") != _filter_sig:
+        st.session_state.browse_page = 0
+        st.session_state["_browse_last_filter"] = _filter_sig
+    _rows, _total = _browse_query(_bq, _bcs if _bcs != "All crystal systems" else "",
+                                  _db_sort, _sort_asc, st.session_state.browse_page)
+    _n_pages = max(1, (_total + PAGE_SIZE - 1) // PAGE_SIZE)
+
+    st.caption(f"**{_total:,}** compounds match · page "
+               f"{st.session_state.browse_page + 1} of {_n_pages} · "
+               f"click a row to navigate · sort by {_sort_col}")
+
+    # ── Table ─────────────────────────────────────────────────────────────────
+    import pandas as pd
+
+    def _fmt(v, decimals=3):
+        if v is None: return ""
+        return f"{v:.{decimals}f}"
+
+    _tbl_data = []
+    for r in _rows:
+        _tbl_data.append({
+            "▶": "▶" if r["mp_id"] == st.session_state.mp_id else "",
+            "mp-id":          r["mp_id"],
+            "Formula":        r["formula"] or "",
+            "System":         r["crystal_system"] or "",
+            "SG":             r["space_group"] or "",
+            "Gap (eV)":       _fmt(r["bandgap"]),
+            "ρ (g/cm³)":      _fmt(r["density"]),
+            "E (GPa)":        _fmt(r["young_modulus"], 0) if r["young_modulus"] else "",
+            "Fmn E":          _fmt(r["formation_energy_per_atom"]),
+            "Hull E":         _fmt(r["energy_above_hull"]),
+            "Order":          r["ordering"] or "",
+            "ε":              _fmt(r["e_total"], 1) if r["e_total"] else "",
+        })
+    _df = pd.DataFrame(_tbl_data)
+
+    _sel = st.dataframe(
+        _df, hide_index=True, use_container_width=True,
+        on_select="rerun", selection_mode="single-row",
+        column_config={
+            "▶":       st.column_config.TextColumn("", width=20),
+            "mp-id":   st.column_config.TextColumn("mp-id",   width=90),
+            "Formula": st.column_config.TextColumn("Formula", width=110),
+            "System":  st.column_config.TextColumn("System",  width=90),
+            "SG":      st.column_config.TextColumn("SG",      width=75),
+            "Gap (eV)":st.column_config.TextColumn("Gap(eV)", width=65),
+            "ρ (g/cm³)":st.column_config.TextColumn("ρ",      width=60),
+            "E (GPa)": st.column_config.TextColumn("E(GPa)",  width=60),
+            "Fmn E":   st.column_config.TextColumn("Fmn E",   width=60),
+            "Hull E":  st.column_config.TextColumn("Hull E",  width=60),
+            "Order":   st.column_config.TextColumn("Order",   width=50),
+            "ε":       st.column_config.TextColumn("ε",       width=50),
+        },
+        key="browse_tbl",
+    )
+    if _sel and _sel.selection and _sel.selection.rows:
+        _row_idx = _sel.selection.rows[0]
+        _clicked = _rows[_row_idx]
+        if _clicked["mp_id"] != st.session_state.mp_id:
+            st.session_state.mp_id        = _clicked["mp_id"]
+            st.session_state.compound_name = _clicked["formula"]
+            st.session_state.curated_data  = None
+            st.session_state.browse_mode   = True   # stay in browse mode
+            st.query_params["mp"] = _clicked["mp_id"]
+            st.rerun()
+
+    # ── Pagination ────────────────────────────────────────────────────────────
+    _pg1, _pg2, _pg3 = st.columns([1, 3, 1], gap="small")
+    with _pg1:
+        if st.button("← Prev", disabled=st.session_state.browse_page == 0,
+                     key="browse_prev", width="stretch"):
+            st.session_state.browse_page -= 1
+            st.rerun()
+    with _pg2:
+        _jump = st.number_input("Page", min_value=1, max_value=_n_pages,
+                                value=st.session_state.browse_page + 1,
+                                key="browse_jump", label_visibility="collapsed")
+        if _jump - 1 != st.session_state.browse_page:
+            st.session_state.browse_page = _jump - 1
+            st.rerun()
+    with _pg3:
+        if st.button("Next →", disabled=st.session_state.browse_page >= _n_pages - 1,
+                     key="browse_next", width="stretch"):
+            st.session_state.browse_page += 1
+            st.rerun()
+
+    st.stop()
+
+elif st.session_state.ashby_mode:
     APROPS = {
         "Density (g/cm³)": "density", "Young's Modulus (GPa)": "young_modulus",
         "Bulk K (GPa)": "k_voigt", "Shear G (GPa)": "g_voigt",
@@ -2463,8 +2662,8 @@ left_col, right_col = st.columns([40, 60], gap="medium")
 # ── LEFT: crystal viewer + why + position chart ────────────────────────────────
 with left_col:
     if structure:
-        st.components.v1.html(
-            render_crystal(structure, accent, w=430, h=VIEWER_H),
+        st.iframe("data:text/html;base64," + base64.b64encode(
+            render_crystal(structure, accent, w="100%", h=VIEWER_H).encode()).decode(),
             height=VIEWER_H + 16)
         lat = structure.lattice
         st.markdown(
@@ -2490,31 +2689,34 @@ with left_col:
             f'{why_text}</div></div>',
             unsafe_allow_html=True)
 
-    # Note button
+    # ── Note + Download buttons — one compact row ─────────────────────────
     existing_note = local_db.get_note(selected_mp_id)
-    note_label = f"Note ({len(existing_note)} chars)" if existing_note else "Add note"
-    st.markdown('<div class="note-btn-wrap">', unsafe_allow_html=True)
-    if st.button(note_label, key="note_btn"):
-        st.session_state["_note_mp_id"]   = selected_mp_id
-        st.session_state["_note_formula"] = formula_display
-        note_dialog()
-    st.markdown('</div>', unsafe_allow_html=True)
-
-    # ── Download buttons ──────────────────────────────────────────────────
-    st.markdown('<div class="action-row">', unsafe_allow_html=True)
-    _dl1, _dl2 = st.columns(2, gap="small")
-    with _dl1:
+    note_label = f"✎ Note ({len(existing_note)}c)" if existing_note else "✎ Note"
+    _nb, _cb, _fb = st.columns(3, gap="small")
+    with _nb:
+        st.markdown('<div class="action-row">', unsafe_allow_html=True)
+        if st.button(note_label, key="note_btn", use_container_width=True):
+            st.session_state["_note_mp_id"]   = selected_mp_id
+            st.session_state["_note_formula"] = formula_display
+            note_dialog()
+        st.markdown('</div>', unsafe_allow_html=True)
+    with _cb:
+        st.markdown('<div class="action-row">', unsafe_allow_html=True)
         if db_row:
             st.download_button("⬇ CSV", data=make_csv_bytes(db_row),
                                file_name=f"{selected_mp_id}.csv",
-                               mime="text/csv", key="csv_dl")
-    with _dl2:
+                               mime="text/csv", key="csv_dl",
+                               use_container_width=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+    with _fb:
+        st.markdown('<div class="action-row">', unsafe_allow_html=True)
         if structure:
             _cif_str = str(CifWriter(structure, symprec=0.1))
             st.download_button("⬇ CIF", data=_cif_str.encode(),
                                file_name=f"{selected_mp_id}.cif",
-                               mime="chemical/x-cif", key="cif_dl")
-    st.markdown('</div>', unsafe_allow_html=True)
+                               mime="chemical/x-cif", key="cif_dl",
+                               use_container_width=True)
+        st.markdown('</div>', unsafe_allow_html=True)
 
     # ── Find Similar ──────────────────────────────────────────────────────
     with st.expander("Find similar compounds", expanded=False):

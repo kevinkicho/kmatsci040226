@@ -1,6 +1,69 @@
 # compounds.py
 # Catalog of compounds with Materials Project IDs, key properties,
 # and plain-English explanations connecting crystal structure to behavior.
+#
+# ── HOW THE 25 CURATED COMPOUNDS WERE CHOSEN ──────────────────────────────────
+#
+# These compounds were hand-picked by Kevin (the original author) to cover
+# the most pedagogically interesting and practically important materials across
+# 10 categories. The selection criteria were:
+#
+#   1. FAME — the compound is widely cited in textbooks or the news
+#              (Si, Fe, diamond, Pt, NdFeB)
+#   2. DIVERSITY — each category spans different crystal systems, bonding types,
+#              and property ranges so comparisons are meaningful
+#   3. DATA COMPLETENESS — the Materials Project has high-quality DFT data
+#              (structure, band gap, elasticity, dielectric) for this mp-id
+#   4. STORY — the compound has a compelling "why this structure → this property"
+#              narrative that can be explained in 3-4 sentences
+#
+# ── HOW A FUTURE AI AGENT COULD AUTOMATE THIS ─────────────────────────────────
+#
+# The manual curation process above could be replaced or augmented by an agentic
+# AI workflow. Here is a concrete recipe for Claude (or any capable LLM with tool
+# use) to do this automatically:
+#
+#   STEP 1 — QUERY THE DATABASE
+#     Use the MP API (or the local matsci.db) to pull all compounds in a category,
+#     filtered by property thresholds. For example, for "Strong Magnets":
+#       mpr.materials.summary.search(ordering=["FM","FiM"],
+#                                    total_magnetization_min=5.0,
+#                                    fields=["material_id","formula_pretty",...])
+#
+#   STEP 2 — SCORE & RANK
+#     Ask the LLM to score each candidate on:
+#       - Is it famous / well-studied? (check Wikipedia existence, citation count)
+#       - Does it add structural diversity vs already-selected compounds?
+#       - Is DFT data complete (elasticity, dielectric, band structure)?
+#     Return a ranked shortlist of 3-5 candidates per category.
+#
+#   STEP 3 — GENERATE EXPLANATIONS
+#     For each selected compound, prompt the LLM:
+#       "Given the crystal structure ({crystal_system}, {space_group}),
+#        key properties ({bandgap}, {magnetization}, {young_modulus}),
+#        and the category {category}, write a 3-4 sentence explanation of
+#        WHY this structure produces this material's defining property.
+#        Use plain English. Avoid jargon. Mention the specific structural
+#        feature (e.g. BCC packing, octahedral tilt, covalent network)."
+#
+#   STEP 4 — VALIDATE & INSERT
+#     Verify the mp-id resolves, fetch the structure, run the app, and check
+#     the 3D viewer loads correctly. Then insert the new entry into COMPOUNDS
+#     using the same dict schema below.
+#
+# The schema each entry must follow:
+#   {
+#     "mp_id":          str,   # e.g. "mp-149"
+#     "formula":        str,   # display formula, e.g. "Si"
+#     "crystal_system": str,   # e.g. "Cubic"
+#     "space_group":    str,   # e.g. "Fd-3m"
+#     "key_props":      dict,  # {label: value_string} — shown in hover tooltip
+#     "why_it_works":   str,   # plain-English structure→property explanation
+#     "accent":         str,   # hex color for UI accents, e.g. "#58a6ff"
+#     "wiki_search":    str,   # Wikipedia article title for the summary fetch
+#   }
+#
+# ──────────────────────────────────────────────────────────────────────────────
 
 COMPOUNDS = {
     "Strong Magnets": {
