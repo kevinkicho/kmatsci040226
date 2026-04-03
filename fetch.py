@@ -86,6 +86,24 @@ CURATED = {
     "mp-763":     ["superconductor"], # MgB2
     "mp-20483":   ["superconductor"], # Pb
     "mp-2701":    ["superconductor"], # NbN   (corrected from mp-20056)
+    # Battery
+    "mp-22526":   ["battery"],        # LiCoO2
+    "mp-19017":   ["battery"],        # LiFePO4
+    "mp-25338":   ["battery"],        # LiMn2O4
+    "mp-776745":  ["battery"],        # Li4Ti5O12
+    # Catalysts
+    "mp-126":     ["catalyst"],       # Pt
+    "mp-20194":   ["catalyst"],       # CeO2
+    "mp-1023924": ["catalyst"],       # MoS2
+    "mp-19770":   ["catalyst"],       # Fe2O3
+    # Thermoelectrics
+    "mp-34202":   ["thermoelectric"], # Bi2Te3
+    "mp-19717":   ["thermoelectric"], # PbTe
+    "mp-2490":    ["thermoelectric"], # CoSb3
+    # Topological Insulators
+    "mp-541837":  ["topological"],    # Bi2Se3
+    "mp-29227":   ["topological"],    # Bi2Te2Se
+    "mp-1883":    ["topological"],    # SnTe
 }
 
 # ── Broader category queries ──────────────────────────────────────────────────

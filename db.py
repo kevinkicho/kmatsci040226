@@ -70,6 +70,13 @@ def init_db():
     """Create tables if they don't already exist, then run any pending migrations."""
     with get_conn() as conn:
         conn.execute("""
+            CREATE TABLE IF NOT EXISTS user_notes (
+                mp_id  TEXT PRIMARY KEY,
+                note   TEXT NOT NULL DEFAULT '',
+                ts     TEXT
+            )
+        """)
+        conn.execute("""
             CREATE TABLE IF NOT EXISTS materials (
                 mp_id                      TEXT PRIMARY KEY,
                 formula                    TEXT,
@@ -297,6 +304,26 @@ def get_position_data(x_col: str, y_col: str,
         conn.row_factory = sqlite3.Row
         rows = conn.execute(query, params).fetchall()
     return [dict(r) for r in rows]
+
+
+def get_note(mp_id: str) -> str:
+    """Return the user's saved note for a compound, or '' if none."""
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT note FROM user_notes WHERE mp_id=?", (mp_id,)
+        ).fetchone()
+    return row[0] if row else ""
+
+
+def save_note(mp_id: str, note: str):
+    """Upsert a user note for a compound."""
+    with get_conn() as conn:
+        conn.execute(
+            "INSERT INTO user_notes (mp_id, note, ts) VALUES (?,?,?) "
+            "ON CONFLICT(mp_id) DO UPDATE SET note=excluded.note, ts=excluded.ts",
+            (mp_id, note.strip(), datetime.utcnow().isoformat())
+        )
+        conn.commit()
 
 
 def stats() -> dict:

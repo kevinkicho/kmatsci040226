@@ -24,6 +24,7 @@ COMPOUNDS = {
                 "all pulling in the same direction, multiplied across trillions of unit cells."
             ),
             "accent": "#e17055",
+            "wiki_search": "Neodymium magnet",
         },
         "Fe  (Iron)": {
             "mp_id": "mp-13",
@@ -45,6 +46,7 @@ COMPOUNDS = {
                 "ferromagnetism."
             ),
             "accent": "#b2bec3",
+            "wiki_search": "Iron",
         },
         "SmCo₅  (Samarium Cobalt)": {
             "mp_id": "mp-1429",
@@ -65,6 +67,7 @@ COMPOUNDS = {
                 "motors and sensors that operate at high temperatures."
             ),
             "accent": "#fdcb6e",
+            "wiki_search": "Samarium–cobalt magnet",
         },
     },
 
@@ -89,6 +92,7 @@ COMPOUNDS = {
                 "cage is what enables this off-centering."
             ),
             "accent": "#00cec9",
+            "wiki_search": "Barium titanate",
         },
         "SrTiO₃  (Strontium Titanate)": {
             "mp_id": "mp-5229",
@@ -109,6 +113,7 @@ COMPOUNDS = {
                 "parameters match, minimizing strain."
             ),
             "accent": "#74b9ff",
+            "wiki_search": "Strontium titanate",
         },
         "CsPbBr₃  (Cesium Lead Bromide)": {
             "mp_id": "mp-567629",
@@ -131,6 +136,7 @@ COMPOUNDS = {
                 "grow from solution at room temperature."
             ),
             "accent": "#f9ca24",
+            "wiki_search": "Caesium lead bromide",
         },
     },
 
@@ -155,6 +161,7 @@ COMPOUNDS = {
                 "want precise electrical switching, not light output."
             ),
             "accent": "#a8d8ea",
+            "wiki_search": "Silicon",
         },
         "GaAs  (Gallium Arsenide)": {
             "mp_id": "mp-2534",
@@ -176,6 +183,7 @@ COMPOUNDS = {
                 ">47% efficiency)."
             ),
             "accent": "#fd79a8",
+            "wiki_search": "Gallium arsenide",
         },
         "TiO₂  (Rutile)": {
             "mp_id": "mp-2657",
@@ -197,6 +205,7 @@ COMPOUNDS = {
                 "nanoparticles maximizes the dye-TiO₂ interface."
             ),
             "accent": "#a29bfe",
+            "wiki_search": "Titanium dioxide",
         },
     },
 
@@ -223,6 +232,7 @@ COMPOUNDS = {
                 "47,000 kN·m/kg — roughly 50× what any current cable can achieve."
             ),
             "accent": "#b9f2ff",
+            "wiki_search": "Diamond",
         },
         "h-BN  (Hexagonal Boron Nitride)": {
             "mp_id": "mp-13150",
@@ -246,6 +256,7 @@ COMPOUNDS = {
                 "a structural cable that doesn't absorb laser propulsion light."
             ),
             "accent": "#dfe6e9",
+            "wiki_search": "Hexagonal boron nitride",
         },
         "SiC  (Silicon Carbide, cubic)": {
             "mp_id": "mp-7631",
@@ -268,6 +279,7 @@ COMPOUNDS = {
                 "SiC is a realistic near-term option while nanotube production scales up."
             ),
             "accent": "#55efc4",
+            "wiki_search": "Silicon carbide",
         },
         "TiC  (Titanium Carbide)": {
             "mp_id": "mp-631",
@@ -290,6 +302,7 @@ COMPOUNDS = {
                 "a key failure mode for any cable extending into low Earth orbit."
             ),
             "accent": "#fdcb6e",
+            "wiki_search": "Titanium carbide",
         },
         "Al₂O₃  (Corundum / Sapphire)": {
             "mp_id": "mp-1143",
@@ -313,6 +326,7 @@ COMPOUNDS = {
                 "sapphire fiber composites are a serious contender for near-term elevator cables."
             ),
             "accent": "#74b9ff",
+            "wiki_search": "Corundum",
         },
     },
 
@@ -339,6 +353,7 @@ COMPOUNDS = {
                 "traditional silica tiles, critical for reusable vehicles."
             ),
             "accent": "#e17055",
+            "wiki_search": "Zirconium diboride",
         },
         "HfB₂  (Hafnium Diboride)": {
             "mp_id": "mp-1994",
@@ -363,6 +378,7 @@ COMPOUNDS = {
                 "dielectric tensor redirects the electric field component of the plasma wave."
             ),
             "accent": "#d63031",
+            "wiki_search": "Hafnium diboride",
         },
         "TiB₂  (Titanium Diboride)": {
             "mp_id": "mp-1145",
@@ -386,6 +402,7 @@ COMPOUNDS = {
                 "trade some maximum temperature capability for lighter weight."
             ),
             "accent": "#fd79a8",
+            "wiki_search": "Titanium diboride",
         },
         "ZrC  (Zirconium Carbide)": {
             "mp_id": "mp-1014307",
@@ -410,6 +427,7 @@ COMPOUNDS = {
                 "would ablate."
             ),
             "accent": "#6c5ce7",
+            "wiki_search": "Zirconium carbide",
         },
         "ZrO₂  (Zirconia — Thermal Barrier)": {
             "mp_id": "mp-776404",
@@ -435,6 +453,7 @@ COMPOUNDS = {
                 "much like a plasma mirror."
             ),
             "accent": "#00b894",
+            "wiki_search": "Zirconium dioxide",
         },
     },
 
@@ -461,6 +480,7 @@ COMPOUNDS = {
                 "space applications where power budgets are critical."
             ),
             "accent": "#74b9ff",
+            "wiki_search": "Niobium",
         },
         "MgB₂  (Magnesium Diboride)": {
             "mp_id": "mp-763",
@@ -483,6 +503,7 @@ COMPOUNDS = {
                 "different physics: structure is not destiny — chemistry and electron count are."
             ),
             "accent": "#55efc4",
+            "wiki_search": "Magnesium diboride",
         },
         "Pb  (Lead)": {
             "mp_id": "mp-20483",
@@ -506,6 +527,7 @@ COMPOUNDS = {
                 "effect (Tc scales with 1/√M, proving phonons drive pairing)."
             ),
             "accent": "#b2bec3",
+            "wiki_search": "Lead",
         },
         "NbN  (Niobium Nitride)": {
             "mp_id": "mp-2701",
@@ -529,6 +551,367 @@ COMPOUNDS = {
                 "thin-film durability. NbN is already in prototype space telescope detectors."
             ),
             "accent": "#a29bfe",
+            "wiki_search": "Niobium nitride",
+        },
+    },
+
+    "Battery Cathodes & Anodes": {
+        "LiCoO₂  (Lithium Cobalt Oxide)": {
+            "mp_id": "mp-22526",
+            "formula": "LiCoO₂",
+            "crystal_system": "Trigonal",
+            "space_group": "R-3m",
+            "key_props": {
+                "Practical capacity": "~140 mAh/g  (theoretical: 274 mAh/g)",
+                "Voltage vs Li/Li⁺": "~3.9 V",
+                "Structure type": "Layered O3 — alternating Li⁺ and CoO₂ sheets",
+            },
+            "why_it_works": (
+                "LiCoO₂ launched the lithium-ion age — it's in every smartphone and laptop "
+                "built before 2015. The R-3m trigonal structure stacks layers in a precise sequence: "
+                "a sheet of edge-sharing CoO₆ octahedra, then a sheet of Li⁺ ions, then another CoO₆ "
+                "sheet. This **layered architecture** is a 2D highway: Li⁺ can slide in and out "
+                "laterally between the cobalt oxide sheets while electrons flow through the external "
+                "circuit. When you charge your phone, you're literally pulling Li⁺ out of this "
+                "structure; when it discharges, they flow back in. The catch: extract more than "
+                "~50% of the Li and the CoO₂ layers collapse — which is why practical capacity "
+                "(140 mAh/g) is half the theoretical limit."
+            ),
+            "accent": "#0984e3",
+            "wiki_search": "Lithium cobalt oxide",
+        },
+        "LiFePO₄  (Lithium Iron Phosphate)": {
+            "mp_id": "mp-19017",
+            "formula": "LiFePO₄",
+            "crystal_system": "Orthorhombic",
+            "space_group": "Pnma",
+            "key_props": {
+                "Capacity": "170 mAh/g  (nearly all usable)",
+                "Voltage vs Li/Li⁺": "~3.4 V  (flat — no fade)",
+                "Safety": "Does not release oxygen on overcharge (NCA/NMC do)",
+            },
+            "why_it_works": (
+                "LiFePO₄ is the safety champion of EV batteries — used in Tesla Model 3 Standard "
+                "Range and almost all grid storage. Its olivine structure (a dense 3D network of "
+                "FeO₆ octahedra and PO₄ tetrahedra) is the key: the strong **P–O covalent bonds** "
+                "inside the phosphate group lock oxygen in place chemically. At 500°C, NMC cathodes "
+                "release oxygen and combust; LFP doesn't. The tradeoff is 1D Li-ion channels "
+                "(along the b-axis only) — much slower than LiCoO₂'s 2D highway. Nanostructuring "
+                "LFP shortens these tunnels, recovering the rate capability. The flat discharge "
+                "voltage plateau means the battery reads ~100% capacity until it's genuinely nearly dead."
+            ),
+            "accent": "#00b894",
+            "wiki_search": "Lithium iron phosphate battery",
+        },
+        "LiMn₂O₄  (Spinel Manganese)": {
+            "mp_id": "mp-25338",
+            "formula": "LiMn₂O₄",
+            "crystal_system": "Cubic",
+            "space_group": "Fd-3m",
+            "key_props": {
+                "Capacity": "~120 mAh/g",
+                "Voltage vs Li/Li⁺": "~4.0 V",
+                "Structure": "Spinel — 3D Li-ion tunnels through Mn₂O₄ framework",
+            },
+            "why_it_works": (
+                "The spinel structure (same crystal type as magnetite Fe₃O₄) gives LiMn₂O₄ "
+                "a fully **3D network of Li-ion tunnels** — unlike LiCoO₂'s 2D sheets. Mn occupies "
+                "octahedral sites in a face-centered cubic oxygen lattice, forming a rigid "
+                "Mn₂O₄ cage. Li⁺ can exit and re-enter from any direction, enabling fast charging. "
+                "Manganese is also cheap, abundant, and non-toxic — unlike cobalt. "
+                "The problem: near room temperature, a Jahn-Teller distortion causes the Mn₂O₄ "
+                "framework to periodically distort its octahedra, dissolving Mn into the electrolyte "
+                "over thousands of cycles. Doping with Ni or Al suppresses this — which led to "
+                "LNMO (LiNi₀.₅Mn₁.₅O₄), a 4.7V spinel pushing current battery research."
+            ),
+            "accent": "#e17055",
+            "wiki_search": "Lithium manganese oxide battery",
+        },
+        "Li₄Ti₅O₁₂  (Lithium Titanate — LTO)": {
+            "mp_id": "mp-776745",
+            "formula": "Li4Ti5O12",
+            "crystal_system": "Cubic",
+            "space_group": "Fd-3m",
+            "key_props": {
+                "Capacity": "175 mAh/g",
+                "Voltage vs Li/Li⁺": "~1.55 V  (low — but no lithium plating)",
+                "Cycle life": ">10,000 cycles  (vs ~500–1000 for graphite)",
+            },
+            "why_it_works": (
+                "LTO is the **zero-strain anode** — a nearly miraculous property. Most anodes "
+                "expand 10–15% as lithium inserts; graphite swells ~13.2%, eventually fracturing. "
+                "LTO's cubic spinel structure absorbs lithium with only ~0.1% volume change. "
+                "The reason: titanium changes oxidation state (Ti⁴⁺ → Ti³⁺) without moving — "
+                "electrons fill the Ti 3d band while the oxide lattice barely shifts. "
+                "This structural rigidity means LTO survives 10,000+ charge cycles with minimal "
+                "degradation — ideal for grid storage and rapid-charge transit buses (Toshiba's "
+                "SCiB cells can charge to 90% in 6 minutes). The low voltage plateau (1.55 V) "
+                "prevents lithium metal plating, eliminating dendrite-related fires."
+            ),
+            "accent": "#a29bfe",
+            "wiki_search": "Lithium titanate",
+        },
+    },
+
+    "Catalysts": {
+        "Pt  (Platinum — Fuel Cell Catalyst)": {
+            "mp_id": "mp-126",
+            "formula": "Pt",
+            "crystal_system": "Cubic (FCC)",
+            "space_group": "Fm-3m",
+            "key_props": {
+                "Oxygen reduction activity": "Best single-element catalyst known",
+                "d-band center": "−2.25 eV  (near-ideal for O binding)",
+                "Role": "Cathode in PEM fuel cells, car catalytic converters",
+            },
+            "why_it_works": (
+                "Platinum's FCC structure exposes {111} and {100} surface facets with exactly "
+                "the right spacing to adsorb oxygen molecules, break the O=O bond, and release "
+                "water — the oxygen reduction reaction (ORR). The key descriptor is the "
+                "**d-band center theory** (Hammer & Nørskov, 1995): Pt's 5d electrons sit at "
+                "−2.25 eV relative to the Fermi level, which is almost perfectly positioned "
+                "to bind O₂ strongly enough to dissociate it, but weakly enough to release "
+                "the product (H₂O). Too strong = surface poisoned; too weak = no reaction. "
+                "Pt is nature's compromise. The challenge: Pt costs ~$30,000/kg. "
+                "Current research uses Pt₃Ni or Pt₃Co alloys — the Ni/Co contracts the "
+                "lattice slightly, shifting the d-band center and multiplying activity by 10–100×."
+            ),
+            "accent": "#dfe6e9",
+            "wiki_search": "Platinum",
+        },
+        "CeO₂  (Ceria — Oxygen Storage Catalyst)": {
+            "mp_id": "mp-20194",
+            "formula": "CeO₂",
+            "crystal_system": "Cubic (fluorite)",
+            "space_group": "Fm-3m",
+            "key_props": {
+                "Oxygen storage capacity": "High — can absorb/release O₂ reversibly",
+                "Bandgap": "~3.2 eV (UV absorber)",
+                "Role": "Three-way catalytic converter, SOFC electrolyte, UV filter",
+            },
+            "why_it_works": (
+                "Ceria has the fluorite crystal structure: Ce⁴⁺ in an FCC array with O²⁻ filling "
+                "all tetrahedral holes. The secret is **redox cycling**: CeO₂ ⇌ Ce₂O₃ + ½O₂. "
+                "When the engine runs rich (excess fuel), Ce⁴⁺ accepts oxygen from the exhaust "
+                "stream and reduces to Ce³⁺ — storing O²⁻ in crystal vacancies. When it runs "
+                "lean (excess air), Ce³⁺ releases that oxygen to burn residual hydrocarbons. "
+                "This stores and releases oxygen in milliseconds, smoothing out the combustion "
+                "cycle. The crystal is forgiving of oxygen vacancies because the fluorite framework "
+                "can accommodate up to ~30% vacancy without collapsing — a structural feature "
+                "unique to the fluorite topology."
+            ),
+            "accent": "#fdcb6e",
+            "wiki_search": "Cerium dioxide",
+        },
+        "MoS₂  (Molybdenum Disulfide — HER Catalyst)": {
+            "mp_id": "mp-1023924",
+            "formula": "MoS₂",
+            "crystal_system": "Hexagonal",
+            "space_group": "P6₃/mmc",
+            "key_props": {
+                "Bandgap": "~1.23 eV  (bulk indirect) / ~1.8 eV (monolayer, direct)",
+                "Active sites": "Sulfur edge sites — basal plane is inert",
+                "Role": "Hydrogen evolution reaction (HER), hydrodesulfurization",
+            },
+            "why_it_works": (
+                "MoS₂ is the graphene of the catalysis world. Its hexagonal structure stacks "
+                "S–Mo–S sandwiches held by van der Waals forces — just like graphite layers. "
+                "The basal (flat top) surface is catalytically inert. All the action happens "
+                "at the **edges**: sulfur atoms at the edge of each layer have dangling bonds "
+                "that bind H⁺, then combine two H to release H₂ — the hydrogen evolution reaction. "
+                "This makes MoS₂ a potential cheap replacement for Pt in green hydrogen production. "
+                "The transition from bulk (indirect 1.23 eV bandgap) to monolayer (direct 1.8 eV) "
+                "was a landmark 2010 discovery that launched the '2D materials beyond graphene' field. "
+                "A monolayer MoS₂ transistor has been demonstrated — the thinest possible semiconductor."
+            ),
+            "accent": "#55efc4",
+            "wiki_search": "Molybdenum disulfide",
+        },
+        "Fe₂O₃  (Hematite — Solar Water Splitting)": {
+            "mp_id": "mp-19770",
+            "formula": "Fe2O3",
+            "crystal_system": "Trigonal",
+            "space_group": "R-3c",
+            "key_props": {
+                "Bandgap": "~2.1 eV  (visible light absorber)",
+                "Abundance": "Most common iron oxide — rust",
+                "Role": "Photoanode for solar water splitting",
+            },
+            "why_it_works": (
+                "Hematite (α-Fe₂O₃) is literally rust — the most abundant iron oxide on Earth, "
+                "costing essentially nothing. Its corundum-type structure (same as Al₂O₃) places "
+                "Fe³⁺ in octahedral holes of a hexagonal close-packed O²⁻ lattice. "
+                "The 2.1 eV bandgap absorbs about 40% of the solar spectrum, giving it "
+                "a theoretical solar-to-hydrogen efficiency of 15%. The catch: hole mobility is "
+                "catastrophically low (~0.01 cm²/V·s vs 450 for Si) because Fe 3d states are "
+                "localized — holes 'self-trap' as small polarons (the hole deforms its local "
+                "crystal environment and gets stuck). The solution discovered in the 2000s: "
+                "nanostructure the hematite so that every hole is within ~2–4 nm of the "
+                "water interface before it can recombine. Elegant materials physics, real green energy."
+            ),
+            "accent": "#d63031",
+            "wiki_search": "Hematite",
+        },
+    },
+
+    "Thermoelectrics": {
+        "Bi₂Te₃  (Bismuth Telluride)": {
+            "mp_id": "mp-34202",
+            "formula": "Bi₂Te₃",
+            "crystal_system": "Trigonal",
+            "space_group": "R-3m",
+            "key_props": {
+                "ZT at 300 K": "~1.0  (best room-temperature thermoelectric)",
+                "Bandgap": "~0.15 eV",
+                "Application": "Peltier coolers, USB beverage coolers, waste heat generators",
+            },
+            "why_it_works": (
+                "Bi₂Te₃ is the undisputed champion of room-temperature thermoelectrics. "
+                "Its layered trigonal structure — quintuple layers of Te–Bi–Te–Bi–Te held "
+                "by van der Waals forces — creates a remarkable combination: high electrical "
+                "conductivity (electrons flow easily along the layers) yet low thermal "
+                "conductivity (phonons scatter at the weak interlayer bonds). "
+                "The thermoelectric figure of merit ZT = S²σT/κ captures this: "
+                "S (Seebeck coefficient) ≈ 200–250 μV/K for Bi₂Te₃, σ is high, and κ is "
+                "unusually low (~1.5 W/m·K). The layered crystal structure is precisely what "
+                "decouples heat flow from electron flow — the same physics makes it a "
+                "topological insulator at its surface."
+            ),
+            "accent": "#00b894",
+            "wiki_search": "Bismuth telluride",
+        },
+        "PbTe  (Lead Telluride)": {
+            "mp_id": "mp-19717",
+            "formula": "PbTe",
+            "crystal_system": "Cubic (rock salt)",
+            "space_group": "Fm-3m",
+            "key_props": {
+                "ZT at 900 K": "~2.2  (with Na doping — record for bulk material)",
+                "Bandgap": "~0.32 eV",
+                "Application": "NASA deep-space RTGs (Voyager, New Horizons power source)",
+            },
+            "why_it_works": (
+                "PbTe's rock salt structure (alternating Pb and Te in a cubic lattice) "
+                "seems simple, but hides remarkable physics. Pb has an unusually large, "
+                "polarizable electron cloud that creates 'lone pair' resonance — the "
+                "Pb atoms vibrate anharmonically, scattering phonons that carry heat "
+                "while leaving electron transport largely intact. "
+                "This gives PbTe an intrinsically low κ (1–2 W/m·K at high temperature). "
+                "Doped with sodium (Na → Pb substitution), ZT reaches 2.2 at 900 K, "
+                "the highest ever measured for a bulk thermoelectric. "
+                "PbTe-based RTGs have powered NASA spacecraft continuously for 50+ years — "
+                "the Voyager probes are still transmitting."
+            ),
+            "accent": "#74b9ff",
+            "wiki_search": "Lead telluride",
+        },
+        "CoSb₃  (Cobalt Antimonide — Skutterudite)": {
+            "mp_id": "mp-2490",
+            "formula": "CoSb₃",
+            "crystal_system": "Cubic",
+            "space_group": "Im-3",
+            "key_props": {
+                "ZT (filled)": "~1.5 at 800 K  (with rare-earth filler atoms)",
+                "Structure type": "Skutterudite — large voids in unit cell",
+                "Application": "Automotive waste heat recovery (BMW, Toyota R&D)",
+            },
+            "why_it_works": (
+                "CoSb₃ has a cubic structure with large cage-like voids formed by "
+                "corner-sharing CoSb₆ octahedra. On its own it's a decent thermoelectric, "
+                "but the breakthrough came from 'filling' those voids with rattling atoms — "
+                "rare earth elements like Ce or La that are too small for the cage and "
+                "literally rattle around inside it. These rattlers scatter phonons "
+                "selectively — they're tuned to the heat-carrying phonon frequencies — "
+                "dramatically reducing thermal conductivity without touching electron paths. "
+                "This concept, called the **phonon glass, electron crystal** paradigm, "
+                "is now a design principle for all advanced thermoelectrics. "
+                "Filled skutterudites achieve ZT ≈ 1.5, making them candidates for "
+                "converting car exhaust heat into electricity."
+            ),
+            "accent": "#e17055",
+            "wiki_search": "Skutterudite",
+        },
+    },
+
+    "Topological Insulators": {
+        "Bi₂Se₃  (Bismuth Selenide)": {
+            "mp_id": "mp-541837",
+            "formula": "Bi₂Se₃",
+            "crystal_system": "Trigonal",
+            "space_group": "R-3m",
+            "key_props": {
+                "Bulk bandgap": "~0.35 eV  (largest among 3D TIs)",
+                "Surface state": "Single Dirac cone — massless electrons at surface",
+                "Application": "Quantum computing, spintronics, axion detection",
+            },
+            "why_it_works": (
+                "Bi₂Se₃ is the textbook 3D topological insulator. Its layered structure "
+                "(same R-3m as Bi₂Te₃) is critical, but the magic is in its band topology. "
+                "Bismuth's heavy atomic mass creates enormous **spin-orbit coupling** — "
+                "the relativistic effect where an electron's spin locks to its momentum. "
+                "This inverts the normal band order near the Fermi level: what should be "
+                "the conduction band drops below the valence band. This **band inversion** "
+                "means the surface between Bi₂Se₃ and vacuum has a topological mismatch "
+                "that *must* be bridged by metallic surface states — states protected "
+                "by time-reversal symmetry that cannot be destroyed by impurities or defects. "
+                "The surface electrons form a single Dirac cone: massless, spin-polarized, "
+                "immune to backscattering. This is why topological insulators are being "
+                "explored for dissipation-free electronics and fault-tolerant quantum bits."
+            ),
+            "accent": "#a29bfe",
+            "wiki_search": "Bismuth selenide",
+        },
+        "Bi₂Te₂Se  (Bismuth Telluride Selenide)": {
+            "mp_id": "mp-29227",
+            "formula": "Bi₂Te₂Se",
+            "crystal_system": "Trigonal",
+            "space_group": "R-3m",
+            "key_props": {
+                "Bulk bandgap": "~0.3 eV",
+                "Advantage": "Lower bulk conductivity than Bi₂Se₃ → cleaner surface signal",
+                "Application": "ARPES studies, topological surface state experiments",
+            },
+            "why_it_works": (
+                "Bi₂Te₂Se sits between Bi₂Te₃ and Bi₂Se₃ in the topological insulator family. "
+                "Its quintuple-layer structure (Se–Bi–Te–Bi–Se) has the Te atoms at the "
+                "layer interior and Se at the outer surface — this arrangement suppresses "
+                "bulk carriers more effectively than either pure compound. "
+                "The result: bulk electrical conductivity is very low, so when surface "
+                "state electrons are measured (e.g., with photoemission spectroscopy), "
+                "they're not drowned out by bulk signal. This made Bi₂Te₂Se the "
+                "material where topological surface states were most clearly resolved "
+                "experimentally in the 2010s. The Dirac cone is the same physics "
+                "as Bi₂Se₃ but easier to observe cleanly."
+            ),
+            "accent": "#fd79a8",
+            "wiki_search": "Topological insulator",
+        },
+        "SnTe  (Tin Telluride — Topological Crystalline Insulator)": {
+            "mp_id": "mp-1883",
+            "formula": "SnTe",
+            "crystal_system": "Cubic (rock salt)",
+            "space_group": "Fm-3m",
+            "key_props": {
+                "Type": "Topological crystalline insulator (TCI) — different symmetry protection",
+                "Bandgap": "~0.18 eV",
+                "Application": "Majorana fermion research, thermoelectrics",
+            },
+            "why_it_works": (
+                "SnTe is a topological crystalline insulator — a new class discovered in 2012 "
+                "where topological surface states are protected by crystal mirror symmetry "
+                "rather than time-reversal symmetry. In the rock salt structure, SnTe has "
+                "mirror planes that cannot be broken without changing the crystal symmetry. "
+                "Surface states appear on the {001} and {111} faces, but NOT on surfaces "
+                "that break mirror symmetry — you can control which surfaces are topological "
+                "by how you cut the crystal. "
+                "SnTe is also a ferroelectric above a critical Sn vacancy concentration, "
+                "making it a rare material with simultaneously topological and ferroelectric "
+                "properties. Topological crystalline insulators are being explored as hosts "
+                "for Majorana fermions — exotic quasiparticles that are their own antiparticle, "
+                "a leading candidate for fault-tolerant quantum computing qubits."
+            ),
+            "accent": "#fdcb6e",
+            "wiki_search": "Topological insulator",
         },
     },
 }
