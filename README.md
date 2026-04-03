@@ -178,6 +178,42 @@ After step 1 completes you can already run the app. Steps 4–5 can take 30–60
 
 ---
 
+## What's next
+
+MatSci Explorer is feature-complete as a learning demo. The natural evolution is to make it an **AI-driven materials intelligence platform** — not just a viewer, but an active research assistant.
+
+### Agentic data expansion
+
+The app currently pulls from three sources (Materials Project, PubChem, Wikipedia). Future sources worth integrating:
+
+| Source | What it adds |
+|--------|-------------|
+| [AFLOW](http://aflowlib.org) | 3M+ compounds, high-throughput DFT, hardness data |
+| [OQMD](https://oqmd.org) | Alternative DFT energetics for cross-validation |
+| [COD](https://www.crystallography.net) | Experimental crystal structures (not just computed) |
+| [Springer Materials](https://materials.springer.com) | Experimental thermal/optical/electrical measurements |
+| [ICSD](https://icsd.fiz-karlsruhe.de) | Full experimental structure database |
+
+An agentic AI workflow (Claude + tool use) could handle this automatically:
+
+1. **Ingest** — query each API, normalize fields into the existing SQLite schema
+2. **Deduplicate** — match compounds across sources by formula + space group, merge best values
+3. **Score candidates** — rank by data completeness, novelty vs existing collection, and structural diversity
+4. **Profile for applications** — given a target spec (e.g. "lightweight structural material for re-entry, κ < 10 W/m·K, E > 200 GPa"), the agent searches the full DB, filters, and returns a ranked shortlist with plain-English rationale
+5. **Generate explanations** — prompt the LLM to write "why this structure → this property" narratives for newly added compounds (same format as `compounds.py`)
+6. **Validate & insert** — verify the mp-id resolves, load the 3D structure, and write the new entry into `compounds.py`
+
+The recipe for step 5–6 is already documented in `compounds.py`.
+
+### Modeling and candidate profiling ideas
+
+- **Beyond band gap** — extend `predict.py` to predict Young's modulus, thermal conductivity, and formation energy using the same structural features + graph neural network embeddings (e.g. MEGNet, CGCNN via `matgl`)
+- **Inverse design** — given target property ranges, use the local DB as a training set for a generative model that proposes new compositions
+- **Uncertainty quantification** — add prediction confidence intervals so the radar chart shows not just the predicted value but how reliable the model is for that compound class
+- **Multi-objective Pareto front** — Ashby charts extended to highlight the Pareto-optimal materials for any two competing properties (e.g. stiffest AND lightest)
+
+---
+
 ## License
 
 Personal learning project — not intended for production or commercial use.
