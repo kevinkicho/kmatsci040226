@@ -95,9 +95,29 @@ def init_db():
                 fetched_at                 TEXT       -- ISO timestamp
             )
         """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS collection (
+                mp_id      TEXT PRIMARY KEY,
+                formula    TEXT,
+                added_at   TEXT
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS dos_cache (
+                mp_id      TEXT PRIMARY KEY,
+                dos_json   TEXT,
+                fetched_at TEXT
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS bandstructure_cache (
+                mp_id      TEXT PRIMARY KEY,
+                bs_json    TEXT,
+                fetched_at TEXT
+            )
+        """)
         conn.commit()
     migrate_db()  # add any new columns to existing DBs
-    print(f"Database ready at: {DB_PATH}")
 
 
 def upsert(mp_id, formula, crystal_system, space_group,
@@ -339,3 +359,95 @@ def stats() -> dict:
         "with_structure": with_st, "with_elasticity": with_mec,
         "with_dielectric": with_die,
     }
+
+
+# ── My Collection ─────────────────────────────────────────────────────────────
+
+def collection_add(mp_id: str, formula: str):
+    with get_conn() as conn:
+        conn.execute(
+            "INSERT OR IGNORE INTO collection (mp_id, formula, added_at) VALUES (?,?,?)",
+            (mp_id, formula, datetime.utcnow().isoformat())
+        )
+        conn.commit()
+
+def collection_remove(mp_id: str):
+    with get_conn() as conn:
+        conn.execute("DELETE FROM collection WHERE mp_id=?", (mp_id,))
+        conn.commit()
+
+def collection_get() -> list[dict]:
+    with get_conn() as conn:
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute(
+            "SELECT mp_id, formula, added_at FROM collection ORDER BY added_at DESC"
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+def collection_has(mp_id: str) -> bool:
+    with get_conn() as conn:
+        r = conn.execute("SELECT 1 FROM collection WHERE mp_id=?", (mp_id,)).fetchone()
+    return r is not None
+
+
+# ── DOS / Band-structure cache ─────────────────────────────────────────────────
+
+def get_dos(mp_id: str) -> dict | None:
+    with get_conn() as conn:
+        row = conn.execute("SELECT dos_json FROM dos_cache WHERE mp_id=?", (mp_id,)).fetchone()
+    if row and row[0]:
+        return json.loads(row[0])
+    return None
+
+def save_dos(mp_id: str, data: dict):
+    with get_conn() as conn:
+        conn.execute(
+            "INSERT OR REPLACE INTO dos_cache (mp_id, dos_json, fetched_at) VALUES (?,?,?)",
+            (mp_id, json.dumps(data), datetime.utcnow().isoformat())
+        )
+        conn.commit()
+
+def get_bandstructure(mp_id: str) -> dict | None:
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT bs_json FROM bandstructure_cache WHERE mp_id=?", (mp_id,)
+        ).fetchone()
+    if row and row[0]:
+        return json.loads(row[0])
+    return None
+
+def save_bandstructure(mp_id: str, data: dict):
+    with get_conn() as conn:
+        conn.execute(
+            "INSERT OR REPLACE INTO bandstructure_cache (mp_id, bs_json, fetched_at) VALUES (?,?,?)",
+            (mp_id, json.dumps(data), datetime.utcnow().isoformat())
+        )
+        conn.commit()
+
+
+# ── Similarity search data ────────────────────────────────────────────────────
+
+def get_all_for_similarity(limit: int = 5000) -> list[dict]:
+    """Return all rows with the 6 similarity features for distance computation."""
+    cols = ("mp_id, formula, bandgap, young_modulus, density, "
+            "total_magnetization, formation_energy_per_atom, refractive_index")
+    with get_conn() as conn:
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute(f"SELECT {cols} FROM materials LIMIT ?", (limit,)).fetchall()
+    return [dict(r) for r in rows]
+
+
+# ── ML training data ──────────────────────────────────────────────────────────
+
+def get_ml_rows() -> list[dict]:
+    """Return rows suitable for training the bandgap prediction model."""
+    cols = ("crystal_system, nsites, volume, density, nelements, "
+            "formation_energy_per_atom, bandgap")
+    with get_conn() as conn:
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute(
+            f"SELECT {cols} FROM materials "
+            f"WHERE bandgap IS NOT NULL AND density IS NOT NULL "
+            f"AND nsites IS NOT NULL AND volume IS NOT NULL"
+        ).fetchall()
+    return [dict(r) for r in rows]

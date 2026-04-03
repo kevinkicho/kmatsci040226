@@ -1,7 +1,6 @@
-# app.py — MatSci Explorer  (zero-scroll · tooltips · rank bars · position chart)
-import bisect, os, json
+# app.py — MatSci Explorer
+import base64, bisect, io, csv, os, json
 import streamlit as st
-import streamlit.components.v1 as components
 import plotly.graph_objects as go
 import plotly.express as px
 from collections import defaultdict
@@ -14,6 +13,7 @@ from compounds import COMPOUNDS
 import db as local_db
 import pubchem as pc
 import wikipedia as wiki_api
+import predict as ml_mod
 
 load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 local_db.init_db()
@@ -22,7 +22,6 @@ local_db.init_db()
 st.components.v1.html("""<script>
 (function(){
     var p = window.parent;
-    // 1. Clear any stored "sidebar collapsed" state from localStorage
     try {
         var ls = p.localStorage;
         for (var i = ls.length - 1; i >= 0; i--) {
@@ -31,7 +30,6 @@ st.components.v1.html("""<script>
                 ls.removeItem(k);
         }
     } catch(e){}
-    // 2. Click the expand button if it exists (retrying until Streamlit renders it)
     var tries = 0;
     var iv = setInterval(function(){
         var btn = p.document.querySelector('[data-testid="collapsedControl"]');
@@ -39,7 +37,7 @@ st.components.v1.html("""<script>
         if (++tries > 30) clearInterval(iv);
     }, 150);
 })();
-</script>""", height=0)
+</script>""", height=1)
 
 st.set_page_config(page_title="MatSci Explorer", page_icon="⚛",
                    layout="wide", initial_sidebar_state="expanded")
@@ -49,7 +47,7 @@ st.markdown("""
 <style>
 header[data-testid="stHeader"] { display:none; }
 #MainMenu, footer { visibility:hidden; }
-.block-container { padding:0.4rem 1rem 0 1rem !important; max-width:100% !important; }
+.block-container { padding:0.2rem 0.8rem 0 0.8rem !important; max-width:100% !important; }
 /* Allow vertical scroll when content overflows — no more hidden overflow */
 section[data-testid="stMain"] { overflow-y:auto !important; overflow-x:hidden !important; }
 
@@ -68,27 +66,27 @@ section[data-testid="stSidebar"] > div:first-child { padding-top:0 !important; }
 
 /* Stat card */
 .sc { background:#161b22; border:1px solid #21262d; border-radius:5px;
-  padding:5px 10px; margin-bottom:4px; }
-.sc-l { font-size:0.62rem; color:#8b949e; text-transform:uppercase;
+  padding:4px 8px; margin-bottom:3px; }
+.sc-l { font-size:0.60rem; color:#8b949e; text-transform:uppercase;
   letter-spacing:.06em; display:block; }
-.sc-v { font-size:0.86rem; color:#e6edf3; font-weight:500; }
-.sc-n { font-size:0.67rem; color:#8b949e; }
+.sc-v { font-size:0.82rem; color:#e6edf3; font-weight:500; }
+.sc-n { font-size:0.64rem; color:#8b949e; }
 /* Rank bar */
-.sc-rank { height:4px; border-radius:2px; margin:3px 0 1px; background:#21262d; }
-.sc-rank-f { height:100%; border-radius:2px; }
+.sc-rank { height:4px; border-radius:2px; margin:3px 0 2px; background:#21262d; }
+.sc-rank-f { height:100%; border-radius:2px; transition:width 0.3s ease; }
 
 /* Scrollable panel */
 .panel { overflow-y:auto; scrollbar-width:thin; scrollbar-color:#30363d transparent; padding-right:2px; }
 
 /* KPI */
-.krow { display:flex; gap:6px; margin:4px 0 6px; flex-wrap:nowrap; }
-.kpi  { background:#161b22; border:1px solid #21262d; border-radius:6px;
-  padding:5px 10px; flex:1; min-width:0; }
-.kl   { font-size:0.58rem; color:#8b949e; text-transform:uppercase; letter-spacing:.06em;
+.krow { display:flex; gap:4px; margin:2px 0 4px; flex-wrap:nowrap; }
+.kpi  { background:#161b22; border:1px solid #21262d; border-radius:5px;
+  padding:3px 8px; flex:1; min-width:0; }
+.kl   { font-size:0.55rem; color:#8b949e; text-transform:uppercase; letter-spacing:.06em;
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.kv   { font-size:0.95rem; font-weight:600; color:#e6edf3;
+.kv   { font-size:0.88rem; font-weight:600; color:#e6edf3;
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.ku   { font-size:0.62rem; color:#8b949e; }
+.ku   { font-size:0.60rem; color:#8b949e; }
 
 /* Badges */
 .badge { display:inline-block; background:#21262d; border:1px solid #30363d;
@@ -99,8 +97,8 @@ section[data-testid="stSidebar"] > div:first-child { padding-top:0 !important; }
 .badge-red    { border-color:#8b1a1a; color:#f85149; background:#2d0000; }
 .badge-blue   { border-color:#1f6feb; color:#58a6ff; background:#0d1f3c; }
 
-.sh { font-size:0.62rem; color:#58a6ff; text-transform:uppercase;
-  letter-spacing:.1em; margin:8px 0 4px; font-weight:700; }
+.sh { font-size:0.60rem; color:#58a6ff; text-transform:uppercase;
+  letter-spacing:.1em; margin:6px 0 3px; font-weight:700; }
 .sh:first-child { margin-top:0; }
 
 /* Sidebar category headers */
@@ -158,6 +156,26 @@ section[data-testid="stSidebar"] > div:first-child { padding-top:0 !important; }
 .tip-scale { display:flex; gap:3px; flex-wrap:wrap; margin:4px 0 6px; }
 .tip-scale span { padding:1px 6px; border-radius:3px; font-size:0.62rem; font-weight:600; }
 
+/* ── Universal hover tooltip (.ttip) ────────────────────── */
+.ttip { position:relative; cursor:help; display:inline-block; }
+.ttip-block { position:relative; cursor:help; display:block; }
+.ttip-box {
+  visibility:hidden; opacity:0;
+  position:absolute; z-index:10000; pointer-events:none;
+  top:calc(100% + 5px); left:0;
+  min-width:210px; max-width:290px;
+  background:#1c2128; border:1px solid #30363d; border-radius:7px;
+  padding:9px 13px;
+  font-size:0.70rem; color:#c9d1d9; line-height:1.55;
+  white-space:normal; text-transform:none;
+  letter-spacing:normal; font-weight:400;
+  box-shadow:0 8px 24px rgba(0,0,0,0.65);
+  transition:opacity 0.15s ease, visibility 0.15s ease; }
+.ttip:hover .ttip-box,
+.ttip-block:hover .ttip-box { visibility:visible; opacity:1; }
+.ttip-title { font-size:0.68rem; font-weight:700; color:#e6edf3;
+  margin-bottom:4px; display:block; }
+
 /* ── "Why" hover popup ───────────────────────────────────── */
 .why-hover-wrap { position:relative; margin-top:6px; }
 .why-trigger {
@@ -181,13 +199,13 @@ section[data-testid="stSidebar"] > div:first-child { padding-top:0 !important; }
   padding:8px 12px; font-size:0.8rem; line-height:1.65; color:#c9d1d9; margin-top:3px; }
 
 /* ── Section header (replaces tabs) ─────────────────────── */
-.section-hdr { font-size:0.62rem; color:#58a6ff; text-transform:uppercase;
-  letter-spacing:.1em; font-weight:700; margin:10px 0 5px; padding-bottom:4px;
+.section-hdr { font-size:0.60rem; color:#58a6ff; text-transform:uppercase;
+  letter-spacing:.1em; font-weight:700; margin:7px 0 4px; padding-bottom:3px;
   border-bottom:1px solid #21262d; }
 .section-hdr:first-child { margin-top:0; }
 
 /* ── 2-column stat card grid ─────────────────────────────── */
-.sc-grid { display:grid; grid-template-columns:1fr 1fr; gap:4px; margin-top:4px; }
+.sc-grid { display:grid; grid-template-columns:1fr 1fr; gap:3px; margin-top:3px; }
 .sc-grid .sh { grid-column:1/-1; }
 
 
@@ -201,6 +219,41 @@ section[data-testid="stSidebar"] > div:first-child { padding-top:0 !important; }
 
 /* ── Lat info line ───────────────────────────────────────── */
 .lat-info { font-size:0.62rem; color:#8b949e; margin-top:2px; line-height:1.4; }
+
+/* ── Action button row (CSV / CIF / etc.) ────────────────── */
+.action-row { display:flex; gap:6px; margin:4px 0 6px; flex-wrap:wrap; }
+.action-row .stDownloadButton > button, .action-row .stButton > button {
+  background:#161b22 !important; border:1px solid #30363d !important;
+  color:#8b949e !important; font-size:0.64rem !important;
+  padding:3px 10px !important; border-radius:5px !important;
+  min-height:0 !important; height:auto !important;
+  transition: border-color 0.15s, color 0.15s !important; }
+.action-row .stDownloadButton > button:hover, .action-row .stButton > button:hover {
+  border-color:#58a6ff !important; color:#e6edf3 !important; }
+
+/* ── Find Similar list ───────────────────────────────────── */
+.sim-item { display:flex; justify-content:space-between; align-items:center;
+  padding:4px 8px; border-radius:4px; margin-bottom:2px;
+  background:#161b22; border:1px solid #21262d;
+  font-size:0.72rem; color:#c9d1d9; cursor:pointer; }
+.sim-dist { font-size:0.62rem; color:#484f58; }
+
+/* ── Application badge strip ─────────────────────────────── */
+.app-badge { display:inline-flex; align-items:center; gap:5px;
+  background:#161b22; border:1px solid #21262d; border-radius:6px;
+  padding:4px 10px; margin:3px 3px 3px 0; font-size:0.70rem; color:#c9d1d9; }
+.app-badge .ab-dot { width:7px; height:7px; border-radius:50%; flex-shrink:0; }
+
+/* ── ML prediction card ──────────────────────────────────── */
+.pred-card { background:#161b22; border:1px solid #21262d; border-radius:6px;
+  padding:10px 14px; margin:6px 0; }
+.pred-val { font-size:1.2rem; font-weight:700; color:#e3b341; }
+.pred-sub { font-size:0.62rem; color:#484f58; margin-top:2px; }
+
+/* ── Collection item ─────────────────────────────────────── */
+.col-item { font-size:0.70rem; padding:3px 6px; border-radius:4px;
+  background:#161b22; border:1px solid #21262d; margin-bottom:2px;
+  color:#c9d1d9; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 
 </style>
 """, unsafe_allow_html=True)
@@ -431,6 +484,10 @@ COL_BOUNDS: dict[str, str] = {
     "thermal_conductivity":      "thermal_conductivity > 0",
     "debye_temperature":         "debye_temperature > 0",
     "poisson_ratio":             "poisson_ratio > 0 AND poisson_ratio < 0.6",
+    "universal_anisotropy":      "universal_anisotropy >= 0 AND universal_anisotropy < 20",
+    "e_ionic":                   "e_ionic > 0 AND e_ionic < 200",
+    "volume":                    "volume > 0 AND volume < 5000",
+    "nsites":                    "nsites > 0 AND nsites < 200",
 }
 
 
@@ -448,8 +505,14 @@ def col_stats(col: str) -> dict:
     return {"sorted": vals, "n": len(vals), "total": total}
 
 
+# Columns where a LOWER value is better (all others treat higher = better)
+_LOWER_IS_BETTER = {"formation_energy_per_atom", "energy_above_hull"}
+
 def pct_rank(raw_val, col: str):
-    """Return 'top X%' float (0–100) — small number = impressive. None if unavailable."""
+    """
+    Return 'top X%' float (0.5–100) where SMALL = impressive.
+    'Top 5%' means this compound ranks in the top 5% of the database for this property.
+    """
     if raw_val is None:
         return None
     stats = col_stats(col)
@@ -457,12 +520,14 @@ def pct_rank(raw_val, col: str):
         return None
     vals = stats["sorted"]
     idx = bisect.bisect_left(vals, raw_val)
-    pct_from_bottom = idx / stats["n"] * 100
-    if col in ("formation_energy_per_atom", "energy_above_hull"):
-        # lower = better → top% = percent beaten (from bottom)
-        return 100.0 - pct_from_bottom
-    # higher = better → top% = percent above this value
-    return pct_from_bottom  # pct that this value beats from bottom = fraction it's above
+    pct_from_bottom = idx / stats["n"] * 100          # 0 = lowest value, 100 = highest
+    if col in _LOWER_IS_BETTER:
+        # Smaller value → lower idx → smaller pct_from_bottom → better rank
+        top_pct = pct_from_bottom
+    else:
+        # Larger value → higher pct_from_bottom → better rank → top% = 100 - pct_from_bottom
+        top_pct = 100.0 - pct_from_bottom
+    return max(top_pct, 0.5)                           # clamp to avoid 0% edge case
 
 
 # Pre-warm stats cache at startup for instant rank bars on first load
@@ -511,14 +576,119 @@ elif st.session_state.mp_id and not _url_mp:
 
 
 # ── HTML helpers ──────────────────────────────────────────────────────────────
-def badge(text, style=""):
-    cls = f"badge badge-{style}" if style else "badge"
-    return f'<span class="{cls}">{text}</span>'
+# ── Tooltip knowledge dictionaries ───────────────────────────────────────────
 
-def _rank_color(top_pct: float) -> str:
-    if top_pct <= 25:  return "#3fb950"
-    if top_pct <= 75:  return "#d29922"
-    return "#f85149"
+_CS_TIPS = {
+    "cubic":        "<b>Cubic</b> — Three equal axes, all angles 90°. Highest symmetry of the 7 crystal systems. Includes FCC, BCC, and diamond structures. Examples: Fe, NaCl, Si.",
+    "hexagonal":    "<b>Hexagonal</b> — Two equal axes at 120°, third axis perpendicular. Common in close-packed metals and layered materials. Examples: graphite, Mg, ice.",
+    "tetragonal":   "<b>Tetragonal</b> — Two equal axes, third different, all angles 90°. Like a stretched or squashed cube. Examples: TiO₂ (rutile), In, white tin.",
+    "orthorhombic": "<b>Orthorhombic</b> — Three unequal axes, all angles 90°. Common in minerals and organic crystals. Examples: BaSO₄, Ga, olivine.",
+    "trigonal":     "<b>Trigonal</b> — Three equal axes at equal angles (rhombohedral) or viewed as hexagonal with 3-fold symmetry. Examples: Bi₂Te₃, calcite, quartz.",
+    "monoclinic":   "<b>Monoclinic</b> — Three unequal axes, one angle ≠ 90°. Still has one mirror plane or 2-fold rotation axis. Examples: gypsum, Se, many silicates.",
+    "triclinic":    "<b>Triclinic</b> — All three axes unequal, no angle = 90°. Lowest symmetry — only possible symmetry is inversion. Examples: feldspar, CuSO₄·5H₂O.",
+}
+
+_SG_TIPS = {
+    "Fm-3m":   "<b>Fm-3m</b> — Cubic face-centered (FCC). Highest-symmetry cubic group. Atoms at cube corners + face centers. Found in Cu, Al, NaCl structure, many metals.",
+    "Im-3m":   "<b>Im-3m</b> — Cubic body-centered (BCC). Atom at corners + body center. Found in Fe (α,δ), W, Mo, Cr.",
+    "Fd-3m":   "<b>Fd-3m</b> — Diamond cubic. FCC with a 2-atom basis giving a tetrahedral network. Found in Si, Ge, diamond.",
+    "F-43m":   "<b>F-43m</b> — Zinc-blende structure. Like diamond but with two atom types. Found in GaAs, InP, ZnS.",
+    "P63/mmc": "<b>P6₃/mmc</b> — Hexagonal close-packed (HCP). Atoms stacked ABAB... Very common in metals: Mg, Ti, Zn. Also graphite.",
+    "R-3m":    "<b>R-3m</b> — Rhombohedral layered structure. 3-fold axis + mirror planes. Classic structure for topological insulators: Bi₂Te₃, Bi₂Se₃.",
+    "Pm-3m":   "<b>Pm-3m</b> — Simple cubic with full mirror symmetry. Prototype for perovskites (ABO₃) at high temperature. Found in CsCl, cubic BaTiO₃.",
+    "Pnma":    "<b>Pnma</b> — Orthorhombic with glide planes and screw axes. One of the most common space groups — over 12% of all known structures. Found in distorted perovskites, olivine.",
+    "P63mc":   "<b>P6₃mc</b> — Hexagonal with 6₃ screw axis and mirror planes. Found in wurtzite structure: ZnO, GaN, many semiconductors.",
+    "C2/c":    "<b>C2/c</b> — Monoclinic with C-centering and glide plane. Common in silicates, pyroxenes, organic compounds.",
+    "P-1":     "<b>P-1</b> — Triclinic with only an inversion center. Minimum symmetry possible in a crystal. Very common in molecular/organic crystals.",
+    "R-3m:H":  "<b>R-3m (hexagonal setting)</b> — Layered rhombohedral structure in the hexagonal description. Found in Bi₂Te₃-family topological insulators and Li-ion cathodes like LiCoO₂.",
+    "P-3m1":   "<b>P-3m1</b> — Trigonal structure with 3-fold symmetry and vertical mirror planes. Found in simple layered compounds.",
+    "P4/mmm":  "<b>P4/mmm</b> — Tetragonal with full mirror symmetry. Common in cuprate superconductors and layered oxides.",
+    "I4/mmm":  "<b>I4/mmm</b> — Body-centered tetragonal with full mirror symmetry. Found in high-Tc superconductors and intermetallics.",
+    "Cmcm":    "<b>Cmcm</b> — C-centered orthorhombic. Common in layered and chain structures.",
+}
+
+_CAT_TIPS = {
+    "Strong Magnets":                      "Permanent magnet materials with extremely high energy product (B·H)max. Tiny volume = huge field. Used in EV motors, MRI machines, wind turbines, loudspeakers.",
+    "Perovskites (Solar & Ferroelectric)": "ABO₃ crystal structure — small B-cation in an oxygen octahedron, large A-cation filling the gaps. Enormously tunable: ferroelectric, piezoelectric, superconducting, or photovoltaic depending on A and B.",
+    "Semiconductors":                      "Materials with a band gap between 0 and ~3 eV — small enough for electrons to jump with thermal energy or light. The foundation of transistors, diodes, solar cells, and LEDs.",
+    "Space Elevator Candidates":           "Materials with ultra-high specific strength (strength ÷ density). A space elevator tether would need specific strength ~50× better than the best steel cables. Covalent ceramics and composites lead here.",
+    "Re-entry & Thermal Shield Materials": "Ultra-high-temperature ceramics (UHTCs) stable above 2000°C with low thermal expansion and high thermal shock resistance. Used in spacecraft nose cones and rocket nozzle liners.",
+    "Superconductors":                     "Zero DC electrical resistance below a critical temperature Tc, and expulsion of magnetic fields (Meissner effect). Used in MRI magnets, particle accelerators, maglev trains, and quantum computers.",
+    "Battery Cathodes & Anodes":           "Li-ion battery electrode materials. Cathodes (positive) store Li⁺ between layers; anodes (negative) intercalate Li into graphite or convert. Choice determines voltage, energy density, and cycle life.",
+    "Catalysts":                           "Materials that lower the activation energy of chemical reactions without being consumed. Essential for catalytic converters, fuel cells, industrial synthesis (Haber-Bosch), and pollution control.",
+    "Thermoelectrics":                     "Convert heat gradients directly to electricity (Seebeck effect) or vice versa (Peltier). Performance = ZT = S²σT/κ. Need high Seebeck S, high conductivity σ, and low thermal conductivity κ — competing demands.",
+    "Topological Insulators":              "Bulk insulators with topologically protected metallic surface states. Surface electrons cannot be backscattered by non-magnetic defects — relevant for dissipationless spintronic devices and quantum computing.",
+}
+
+_SECTION_TIPS = {
+    "Electronic & Magnetic": "DFT-computed electronic structure: band gap, band edge energies (CBM/VBM), gap type, and magnetic ordering from spin-polarized calculations.",
+    "Mechanical & Thermal":  "Elastic stiffness from DFT stress-strain simulations. Voigt and Reuss bounds are averaged (Hill average) to give polycrystalline moduli. Thermal properties estimated from elastic wave velocities.",
+    "Dielectric & Optical":  "Frequency-dependent dielectric response from density functional perturbation theory (DFPT). ε_total = ε_ionic + ε_electronic. Refractive index n = √ε_electronic at optical frequencies.",
+    "Stability & Physical":  "Thermodynamic stability from the convex hull of DFT formation energies. Hull energy = 0 means the stable ground state; > 0.025 eV/atom is typically not synthesizable at ambient conditions.",
+    "Applications":          "Rule-based application tags derived from computed properties. Not exhaustive — used as a starting point to explore what technologies this material is relevant to.",
+    "Property Radar":        "Spider chart normalizing each property to 0–1 relative to the full database range. Lets you compare the overall 'fingerprint' of two compounds at a glance.",
+    "ML Bandgap Prediction": "A GradientBoostingRegressor trained on the local database using only structural and compositional descriptors (no electronic structure input). Shows how well crystal geometry alone predicts the band gap.",
+    "XRD Pattern (Cu Kα)":   "Simulated powder X-ray diffraction using Cu Kα radiation (λ=1.5406 Å). Peak positions follow Bragg's law: 2d·sinθ = nλ. Heights approximate structure factors; no broadening or instrumental effects.",
+    "About":                 "Plain-language summary fetched from Wikipedia and cached locally. Covers history of discovery, key applications, and notable physical properties.",
+    "Electronic Structure":  "Density of states (DOS): how many electron energy levels exist at each energy. Band structure: how electron energy varies along high-symmetry paths in reciprocal space (k-space).",
+    "Parallel Coordinates Explorer": "Multi-property comparison across all compounds in the database. Each vertical axis = one property; each polyline = one compound. Scroll to zoom; hover any line for details.",
+}
+
+_SH_TIPS = {
+    "Electronic":              "Band gap, CBM, and VBM from the DFT band structure. CBM = conduction band minimum (lowest empty state); VBM = valence band maximum (highest filled state).",
+    "Magnetic":                "Magnetic ordering from spin-polarized DFT. FM = ferromagnetic (all spins parallel), AFM = antiferromagnetic (alternating ±), FiM = ferrimagnetic (unequal opposing), NM = non-magnetic.",
+    "Elastic Moduli":          "Polycrystalline averages from the full elastic stiffness tensor Cᵢⱼ. Bulk K resists compression; shear G resists shape change; Young's E = uniaxial stiffness; Poisson ν = lateral contraction ratio.",
+    "Thermal":                 "Thermal conductivity estimated from Clarke and Cahill models (uses elastic moduli + density). Debye temperature θD is the phonon energy scale — above θD, classical heat capacity is reached.",
+    "Dielectric & Optical":   "Static dielectric constant ε measures polarization in a DC field. The electronic part ε∞ responds at optical frequencies. Refractive index n = √ε∞; reflectivity R = ((n−1)/(n+1))².",
+    "Thermodynamic Stability": "Convex hull distance: the energy (eV/atom) above the most stable phase(s) at this composition. Zero = ground state. Values > 0.025 eV/atom usually mean the compound is hard or impossible to synthesize.",
+    "Physical & Structural":  "Unit cell parameters from the DFT-relaxed structure. Volume and density reflect the equilibrium lattice constant (typically slightly overestimated by GGA DFT).",
+}
+
+_KPI_TIPS = {
+    "Density":       "Mass per unit volume (g/cm³). Determined by atomic masses and packing efficiency. Low density + high stiffness = high specific strength — key for aerospace and structural applications.",
+    "Band Gap":      "Energy window forbidden to electrons (eV). Zero = metal. 0–3 eV = semiconductor. >3 eV = insulator. The gap controls optical absorption, electrical conductivity, and transistor switching.",
+    "Young's E":     "Axial stiffness — force needed to stretch or compress per unit area (GPa). Steel ≈ 200 GPa, diamond ≈ 1050 GPa, rubber < 0.1 GPa. High E = stiff; low E = flexible.",
+    "Bulk K":        "Resistance to uniform compression (GPa). Higher = harder to compress. Directly related to the second derivative of the energy-volume curve. Diamond K ≈ 440 GPa.",
+    "Dielectric ε":  "Static dielectric constant. How much the material polarizes in an electric field. Higher = stronger field shielding / more charge stored per volt. Metals → ε = ∞.",
+    "Refr. Index":   "Optical refractive index n = √ε_electronic. Controls how light bends (Snell's law) and surface reflectivity R = ((n−1)/(n+1))². Diamond n ≈ 2.42; glass n ≈ 1.5.",
+    "Magnetization": "Total magnetic moment per formula unit (μB/f.u.). Non-zero in ferro-, ferri-, and antiferromagnetic materials. One Bohr magneton (μB) ≈ 9.27×10⁻²⁴ J/T.",
+    "Thermal κ":     "Rate of heat flow per unit temperature gradient (W/m·K). Diamond ≈ 2000; Cu ≈ 400; stainless steel ≈ 15; thermal barrier coatings target < 3 W/m·K.",
+}
+
+_BADGE_TIPS = {
+    "Stable":                  "Energy above the convex hull = 0 eV/atom. This is the thermodynamic ground state at this composition — the phase that forms at equilibrium.",
+    "Experimentally observed":  "At least one entry in the ICSD (Inorganic Crystal Structure Database) matches this compound — meaning it has been synthesized and its structure confirmed by experiment.",
+    "Computational only":       "No experimental crystal structure in the ICSD. This structure comes from DFT calculations or structure prediction — it may or may not be synthesizable.",
+}
+
+def _sg_tip(sg: str) -> str:
+    if sg in _SG_TIPS:
+        return _SG_TIPS[sg]
+    return (f"<b>{sg}</b> — one of the 230 space groups that classify all possible 3D "
+            f"crystal symmetries. The symbol encodes point-group operations (rotations, "
+            f"reflections) plus translational symmetries (screw axes, glide planes).")
+
+def badge(text, style="", tooltip=""):
+    cls = f"badge badge-{style}" if style else "badge"
+    inner = f'<span class="{cls}">{text}</span>'
+    if tooltip:
+        return f'<span class="ttip">{inner}<span class="ttip-box">{tooltip}</span></span>'
+    return inner
+
+def _rank_tier(top_pct: float) -> tuple:
+    """
+    5-tier ranking system.  top_pct is 'top X%' where small = impressive.
+    Returns (tier_label, text_color, bar_color, track_color).
+    """
+    if top_pct <= 10:
+        return "Exceptional", "#3fb950", "#2ea043", "#0d2818"   # emerald
+    if top_pct <= 25:
+        return "Strong",      "#58a6ff", "#1f6feb", "#0d1f3c"   # blue
+    if top_pct <= 50:
+        return "Average",     "#e3b341", "#9e6a03", "#2d2000"   # amber
+    if top_pct <= 75:
+        return "Below avg",   "#e08547", "#b45309", "#3a1500"   # orange
+    return     "Low",         "#f85149", "#c63131", "#3c0a09"   # crimson
 
 def sc(label: str, value: str, note: str = "",
        col: str = None, raw=None, tip: str = None) -> str:
@@ -535,29 +705,630 @@ def sc(label: str, value: str, note: str = "",
     if col is not None and raw is not None:
         top_pct = pct_rank(raw, col)
         if top_pct is not None:
-            # bar fills proportionally to how much of DB this value beats
-            beats_pct = 100.0 - top_pct  # for higher-is-better cols
-            if col in ("formation_energy_per_atom", "energy_above_hull"):
-                beats_pct = top_pct      # already fraction-beaten for lower-is-better
-            color   = _rank_color(top_pct)
+            # bar fills proportionally to how much of the DB this value surpasses
+            beats_pct = 100.0 - top_pct   # uniform for all cols: top 5% → bar 95% full
+            tier, txt_color, bar_color, track_color = _rank_tier(top_pct)
             n_total = col_stats(col).get("total", 6816)
+            top_label = "< 1" if top_pct < 1 else f"{top_pct:.0f}"
             rank_html = (
-                f'<div class="sc-rank"><div class="sc-rank-f" '
-                f'style="background:{color};width:{beats_pct:.1f}%;"></div></div>'
-                f'<div class="sc-n" style="color:{color};">Top {top_pct:.0f}% of {n_total:,}</div>'
+                f'<div class="sc-rank" style="background:{track_color};">'
+                f'<div class="sc-rank-f" style="background:{bar_color};width:{beats_pct:.1f}%;"></div></div>'
+                f'<div class="sc-n" style="color:{txt_color};font-size:0.63rem;">'
+                f'<span style="font-weight:600;">{tier}</span>'
+                f'<span style="color:#484f58;"> · top {top_label}% of {n_total:,}</span></div>'
             )
 
     return (f'<div class="sc">{lbl_html}'
             f'<div class="sc-v">{value}</div>'
             f'{note_html}{rank_html}</div>')
 
-def sh(text):  return f'<div class="sh">{text}</div>'
+def sh(text, tooltip=""):
+    tt = tooltip or _SH_TIPS.get(text, "")
+    if tt:
+        return (f'<div class="sh"><span class="ttip">'
+                f'{text}<span class="ttip-box">{tt}</span></span></div>')
+    return f'<div class="sh">{text}</div>'
+
 def na(msg="Not available"): return f'<div class="na">{msg}</div>'
-def kpi(label, value, unit=""):
-    return (f'<div class="kpi"><div class="kl">{label}</div>'
+
+def kpi(label, value, unit="", tooltip=""):
+    tt = tooltip or _KPI_TIPS.get(label, "")
+    if tt:
+        lbl_html = (f'<div class="kl ttip" style="position:relative;display:block;cursor:help;">'
+                    f'{label}<span class="ttip-box">{tt}</span></div>')
+    else:
+        lbl_html = f'<div class="kl">{label}</div>'
+    return (f'<div class="kpi">{lbl_html}'
             f'<div class="kv">{value}<span class="ku"> {unit}</span></div></div>')
+
+def section_hdr(text, tooltip="", style=""):
+    """Section header div with optional hover tooltip."""
+    tt = tooltip or _SECTION_TIPS.get(text, "")
+    sty = f' style="{style}"' if style else ""
+    if tt:
+        return (f'<div class="section-hdr"{sty}>'
+                f'<span class="ttip">{text}<span class="ttip-box">{tt}</span></span></div>')
+    return f'<div class="section-hdr"{sty}>{text}</div>'
+
 def panel(html, height=345):
     return f'<div class="panel" style="height:{height}px;">{html}</div>'
+
+
+# ── CSV export ────────────────────────────────────────────────────────────────
+_EXPORT_COLS = [
+    "mp_id","formula","crystal_system","space_group","bandgap","is_direct_gap",
+    "cbm","vbm","total_magnetization","ordering","formation_energy_per_atom",
+    "energy_above_hull","nsites","volume","density","k_voigt","g_voigt",
+    "young_modulus","poisson_ratio","universal_anisotropy","e_total","e_ionic",
+    "e_electronic","refractive_index","thermal_conductivity","debye_temperature",
+    "nelements","chemsys",
+]
+def make_csv_bytes(row: dict) -> bytes:
+    buf = io.StringIO()
+    w = csv.writer(buf)
+    w.writerow(_EXPORT_COLS)
+    w.writerow([row.get(c, "") for c in _EXPORT_COLS])
+    return buf.getvalue().encode()
+
+
+# ── Radar chart ───────────────────────────────────────────────────────────────
+@st.cache_data(show_spinner=False)
+def get_radar_norms() -> dict:
+    COLS = {
+        "bandgap":                   "bandgap > 0 AND bandgap < 15",
+        "young_modulus":             "young_modulus > 0 AND young_modulus < 2000",
+        "k_voigt":                   "k_voigt > 0 AND k_voigt < 1000",
+        "density":                   "density > 0 AND density < 30",
+        "refractive_index":          "refractive_index > 0 AND refractive_index < 10",
+        "total_magnetization":       "total_magnetization > 0",
+        "thermal_conductivity":      "thermal_conductivity > 0 AND thermal_conductivity < 500",
+        "formation_energy_per_atom": "formation_energy_per_atom IS NOT NULL",
+    }
+    norms = {}
+    with local_db.get_conn() as conn:
+        for col, where in COLS.items():
+            r = conn.execute(
+                f"SELECT MIN({col}), MAX({col}) FROM materials "
+                f"WHERE {col} IS NOT NULL AND {where}"
+            ).fetchone()
+            if r and r[0] is not None and r[1] is not None and r[1] > r[0]:
+                norms[col] = (r[0], r[1])
+    return norms
+
+_RADAR_PROPS = [
+    ("Band Gap",     "bandgap",                   False),
+    ("Young's E",    "young_modulus",              False),
+    ("Bulk K",       "k_voigt",                    False),
+    ("Density",      "density",                    True),   # lower = better → invert
+    ("Refr. Index",  "refractive_index",           False),
+    ("Magnetization","total_magnetization",        False),
+    ("Thermal κ",    "thermal_conductivity",       False),
+    ("Stability",    "formation_energy_per_atom",  True),   # more negative = better → invert
+]
+
+def _hex_to_rgba(hex_color: str, alpha: float) -> str:
+    h = hex_color.lstrip("#")
+    r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+    return f"rgba({r},{g},{b},{alpha})"
+
+def build_radar_chart(row_a: dict, row_b: dict | None,
+                      label_a: str, label_b: str,
+                      accent_a: str, accent_b: str) -> go.Figure:
+    norms = get_radar_norms()
+    labels = [p[0] for p in _RADAR_PROPS]
+
+    def _norm(val, col, invert):
+        if val is None or col not in norms: return 0.0
+        lo, hi = norms[col]
+        n = (val - lo) / (hi - lo)
+        return max(0.0, min(1.0, 1.0 - n if invert else n))
+
+    def _vals(row):
+        return [_norm(row.get(col), col, inv) for _, col, inv in _RADAR_PROPS]
+
+    fig = go.Figure()
+    va = _vals(row_a)
+    fig.add_trace(go.Scatterpolar(
+        r=va + [va[0]], theta=labels + [labels[0]],
+        fill="toself", fillcolor=_hex_to_rgba(accent_a, 0.157),
+        line=dict(color=accent_a, width=2), name=label_a,
+        hovertemplate="%{theta}: %{r:.2f}<extra></extra>",
+    ))
+    if row_b:
+        vb = _vals(row_b)
+        fig.add_trace(go.Scatterpolar(
+            r=vb + [vb[0]], theta=labels + [labels[0]],
+            fill="toself", fillcolor=_hex_to_rgba(accent_b, 0.157),
+            line=dict(color=accent_b, width=2), name=label_b,
+            hovertemplate="%{theta}: %{r:.2f}<extra></extra>",
+        ))
+    fig.update_layout(
+        polar=dict(
+            bgcolor="#161b22",
+            radialaxis=dict(visible=True, range=[0,1], showticklabels=False,
+                            gridcolor="#30363d"),
+            angularaxis=dict(gridcolor="#21262d",
+                             tickfont=dict(size=9, color="#8b949e")),
+        ),
+        template="plotly_dark", paper_bgcolor="#0d1117",
+        margin=dict(l=38, r=38, t=32, b=32), height=200,
+        legend=dict(bgcolor="#161b22", bordercolor="#30363d", borderwidth=1,
+                    font=dict(size=9), x=0.82, y=1.12),
+        showlegend=True,
+    )
+    return fig
+
+
+# ── Applications badges ───────────────────────────────────────────────────────
+_APP_RULES = [
+    # (label, color_hex, check_fn)
+    ("Solar cell",          "#f9ca24", lambda r, el: (
+        r.get("bandgap") is not None and 0.9 <= r["bandgap"] <= 1.8
+        and r.get("is_direct_gap") == 1)),
+    ("Wide-gap LED",        "#6c5ce7", lambda r, el: (
+        r.get("bandgap") is not None and 2.5 <= r["bandgap"] <= 4.5
+        and r.get("is_direct_gap") == 1)),
+    ("Permanent magnet",    "#e17055", lambda r, el: (
+        r.get("ordering") in ("FM","FiM")
+        and r.get("total_magnetization") is not None
+        and r["total_magnetization"] > 5.0)),
+    ("Thermal barrier",     "#fd79a8", lambda r, el: (
+        r.get("thermal_conductivity") is not None and r["thermal_conductivity"] < 5.0
+        and r.get("young_modulus") is not None and r["young_modulus"] > 100)),
+    ("Superconductor hint", "#74b9ff", lambda r, el: (
+        r.get("bandgap") == 0
+        and r.get("energy_above_hull") is not None
+        and r["energy_above_hull"] < 0.05)),
+    ("Optical coating",     "#00cec9", lambda r, el: (
+        r.get("refractive_index") is not None and 1.3 <= r["refractive_index"] <= 2.5)),
+    ("Aerospace structural",  "#a29bfe", lambda r, el: (
+        r.get("young_modulus") is not None and r.get("density") is not None
+        and r["density"] > 0 and (r["young_modulus"] / r["density"]) > 80)),
+    ("Thermoelectric hint", "#55efc4", lambda r, el: (
+        r.get("bandgap") is not None and 0.1 < r["bandgap"] < 1.5
+        and r.get("thermal_conductivity") is not None
+        and r["thermal_conductivity"] < 3.0)),
+    ("Battery cathode hint","#fdcb6e", lambda r, el: (
+        bool(el) and any(e in {"Fe","Co","Ni","Mn","V","Ti","Cr","Mo"} for e in el)
+        and "O" in el
+        and r.get("bandgap") is not None and 0 < r["bandgap"] < 4)),
+    ("High dielectric",     "#e84393", lambda r, el: (
+        r.get("e_total") is not None and r["e_total"] > 20)),
+]
+
+def build_applications(row: dict) -> str:
+    if not row:
+        return na("No property data")
+    try:
+        el = set(json.loads(row.get("elements") or "[]"))
+    except Exception:
+        el = set()
+
+    found = []
+    for label, color, check in _APP_RULES:
+        try:
+            if check(row, el):
+                found.append((label, color))
+        except Exception:
+            pass
+
+    if not found:
+        return (f'<div style="font-size:0.72rem;color:#484f58;padding:4px 0;">'
+                f'No strong application signal from current data — '
+                f'more properties needed (run fetch.py to fill in mechanical/dielectric data).</div>')
+
+    badges = "".join(
+        f'<span class="app-badge">'
+        f'<span class="ab-dot" style="background:{c};"></span>{lbl}</span>'
+        for lbl, c in found
+    )
+    return (f'<div style="padding:3px 0;">{badges}</div>'
+            f'<div style="font-size:0.60rem;color:#484f58;margin-top:4px;">'
+            f'Rule-based heuristics — not a substitute for expert evaluation</div>')
+
+
+# ── Find Similar ──────────────────────────────────────────────────────────────
+@st.cache_data(show_spinner=False)
+def find_similar(mp_id: str, top_n: int = 8) -> list[dict]:
+    FEAT = ["bandgap","young_modulus","density",
+            "total_magnetization","formation_energy_per_atom","refractive_index"]
+    all_rows = local_db.get_all_for_similarity()
+    # Per-column min/max
+    ranges = {}
+    for col in FEAT:
+        vals = [r[col] for r in all_rows if r.get(col) is not None]
+        if vals:
+            lo, hi = min(vals), max(vals)
+            ranges[col] = (lo, hi - lo if hi > lo else 1.0)
+
+    def to_vec(row):
+        v = []
+        for col in FEAT:
+            val = row.get(col)
+            if val is None or col not in ranges:
+                v.append(None)
+            else:
+                lo, rng = ranges[col]
+                v.append((val - lo) / rng)
+        return v
+
+    query = next((r for r in all_rows if r["mp_id"] == mp_id), None)
+    if not query:
+        return []
+    qv = to_vec(query)
+
+    results = []
+    for r in all_rows:
+        if r["mp_id"] == mp_id:
+            continue
+        rv = to_vec(r)
+        # Euclidean distance over shared non-None dimensions
+        ss, n = 0.0, 0
+        for a, b in zip(qv, rv):
+            if a is not None and b is not None:
+                ss += (a - b) ** 2
+                n += 1
+        if n >= 2:
+            results.append({"mp_id": r["mp_id"], "formula": r["formula"],
+                             "dist": (ss / n) ** 0.5})
+    results.sort(key=lambda x: x["dist"])
+    return results[:top_n]
+
+
+# ── ML model (trained once per session) ──────────────────────────────────────
+@st.cache_resource(show_spinner=False)
+def get_ml_model():
+    rows = local_db.get_ml_rows()
+    return ml_mod.build_model(rows)
+
+
+# ── DOS rendering ─────────────────────────────────────────────────────────────
+def render_dos(mp_id: str, api_key: str):
+    """Render DOS chart, fetching from MP API if not cached."""
+    cached = local_db.get_dos(mp_id)
+    if cached is None:
+        if not api_key:
+            st.caption("No API key — cannot fetch DOS.")
+            return
+        with st.spinner("Fetching density of states…"):
+            try:
+                from mp_api.client import MPRester
+                from pymatgen.electronic_structure.core import Spin
+                with MPRester(api_key) as mpr:
+                    dos = mpr.get_dos_by_material_id(mp_id)
+                if dos is None:
+                    st.caption("DOS not available for this compound.")
+                    local_db.save_dos(mp_id, {"unavailable": True})
+                    return
+                efermi = dos.efermi
+                energies = [e - efermi for e in dos.energies]
+                if Spin.down in dos.densities:
+                    d_up   = dos.densities[Spin.up].tolist()
+                    d_down = dos.densities[Spin.down].tolist()
+                else:
+                    d_up   = dos.get_densities().tolist()
+                    d_down = None
+                cached = {"energies": energies, "up": d_up, "down": d_down,
+                          "efermi": 0.0}
+                local_db.save_dos(mp_id, cached)
+            except Exception as e:
+                st.caption(f"DOS fetch error: {e}")
+                return
+
+    if cached.get("unavailable"):
+        st.caption("DOS not available for this compound.")
+        return
+
+    energies = cached["energies"]
+    d_up     = cached["up"]
+    d_down   = cached.get("down")
+    # Clip to ±5 eV window for readability
+    lo, hi = -5.0, 5.0
+    idxs = [i for i, e in enumerate(energies) if lo <= e <= hi]
+    if not idxs:
+        idxs = list(range(len(energies)))
+    e_plot  = [energies[i] for i in idxs]
+    up_plot = [d_up[i] for i in idxs]
+
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x=up_plot, y=e_plot, mode="lines",
+        line=dict(color="#58a6ff", width=1.5),
+        fill="tozerox", fillcolor="rgba(88,166,255,0.12)",
+        name="Spin up" if d_down else "DOS",
+    ))
+    if d_down:
+        dn_plot = [-d_down[i] for i in idxs]
+        fig.add_trace(go.Scatter(
+            x=dn_plot, y=e_plot, mode="lines",
+            line=dict(color="#f85149", width=1.5),
+            fill="tozerox", fillcolor="rgba(248,81,73,0.12)",
+            name="Spin down",
+        ))
+    fig.add_hline(y=0, line=dict(color="#d29922", width=1, dash="dot"),
+                  annotation_text="Eᶠ", annotation_font_size=9)
+    fig.add_vline(x=0, line=dict(color="#30363d", width=1))
+    fig.update_layout(
+        xaxis_title="DOS (states/eV)", yaxis_title="E − Eᶠ (eV)",
+        template="plotly_dark", paper_bgcolor="#0d1117", plot_bgcolor="#161b22",
+        margin=dict(l=50, r=10, t=8, b=40), height=220,
+        xaxis=dict(gridcolor="#21262d", tickfont=dict(size=9)),
+        yaxis=dict(gridcolor="#21262d", tickfont=dict(size=9), range=[lo, hi]),
+        legend=dict(bgcolor="#161b22", bordercolor="#30363d", borderwidth=1,
+                    font=dict(size=9), x=0.78, y=0.98),
+    )
+    st.plotly_chart(fig, width="stretch")
+    st.caption("Density of states ± 5 eV around Fermi level  ·  source: Materials Project")
+
+
+# ── Band structure rendering ──────────────────────────────────────────────────
+def render_bandstructure(mp_id: str, api_key: str, accent: str):
+    """Render band structure chart, fetching from MP API if not cached."""
+    cached = local_db.get_bandstructure(mp_id)
+    if cached is None:
+        if not api_key:
+            st.caption("No API key — cannot fetch band structure.")
+            return
+        with st.spinner("Fetching band structure…"):
+            try:
+                from mp_api.client import MPRester
+                from pymatgen.electronic_structure.core import Spin
+                with MPRester(api_key) as mpr:
+                    bs = mpr.get_bandstructure_by_material_id(mp_id)
+                if bs is None:
+                    st.caption("Band structure not available for this compound.")
+                    local_db.save_bandstructure(mp_id, {"unavailable": True})
+                    return
+                efermi = bs.efermi
+                # Build distance array across all branches
+                distances, bands_up, bands_down = [], [], []
+                tick_pos, tick_lbl = [], []
+                dist_offset = 0.0
+                prev_end = None
+                for branch in bs.branches:
+                    si, ei = branch["start_index"], branch["end_index"]
+                    kpts = bs.kpoints[si:ei+1]
+                    # distances within branch
+                    seg_d = [0.0]
+                    for j in range(1, len(kpts)):
+                        seg_d.append(seg_d[-1] + float(
+                            sum((kpts[j].frac_coords[k]-kpts[j-1].frac_coords[k])**2
+                                for k in range(3)) ** 0.5))
+                    tick_lbl.append(branch.get("name","").split("-")[0] or "")
+                    tick_pos.append(dist_offset)
+                    for d in seg_d:
+                        distances.append(dist_offset + d)
+                    dist_offset = distances[-1]
+                    prev_end = branch.get("name","")
+                tick_lbl.append(prev_end.split("-")[-1] if prev_end else "")
+                tick_pos.append(dist_offset)
+
+                nb = bs.nb_bands
+                # Collect only bands within ±3 eV of Fermi for compactness
+                su = bs.bands[Spin.up]
+                bands_up = []
+                for bi in range(nb):
+                    band = [float(su[bi][i]) - efermi
+                            for i in range(len(distances))]
+                    if min(band) <= 3.0 and max(band) >= -3.0:
+                        bands_up.append(band)
+                if Spin.down in bs.bands:
+                    sd = bs.bands[Spin.down]
+                    for bi in range(nb):
+                        band = [float(sd[bi][i]) - efermi
+                                for i in range(len(distances))]
+                        if min(band) <= 3.0 and max(band) >= -3.0:
+                            bands_down.append(band)
+                cached = {
+                    "distances": distances, "bands_up": bands_up,
+                    "bands_down": bands_down if bands_down else None,
+                    "tick_pos": tick_pos, "tick_lbl": tick_lbl,
+                }
+                local_db.save_bandstructure(mp_id, cached)
+            except Exception as e:
+                st.caption(f"Band structure fetch error: {e}")
+                return
+
+    if cached.get("unavailable"):
+        st.caption("Band structure not available for this compound.")
+        return
+
+    distances  = cached["distances"]
+    bands_up   = cached["bands_up"]
+    bands_down = cached.get("bands_down") or []
+    tick_pos   = cached["tick_pos"]
+    tick_lbl   = cached["tick_lbl"]
+
+    fig = go.Figure()
+    for band in bands_up:
+        fig.add_trace(go.Scatter(
+            x=distances, y=band, mode="lines",
+            line=dict(color=accent, width=1), showlegend=False,
+            hovertemplate="E−Eᶠ=%{y:.3f} eV<extra></extra>",
+        ))
+    for band in bands_down:
+        fig.add_trace(go.Scatter(
+            x=distances, y=band, mode="lines",
+            line=dict(color="#f85149", width=1, dash="dot"),
+            showlegend=False,
+        ))
+    fig.add_hline(y=0, line=dict(color="#d29922", width=1, dash="dot"),
+                  annotation_text="Eᶠ", annotation_font_size=9)
+    for xp in tick_pos:
+        fig.add_vline(x=xp, line=dict(color="#30363d", width=1))
+    fig.update_layout(
+        xaxis=dict(tickvals=tick_pos, ticktext=tick_lbl, gridcolor="#21262d",
+                   tickfont=dict(size=10)),
+        yaxis=dict(title="E − Eᶠ (eV)", range=[-3, 3], gridcolor="#21262d",
+                   tickfont=dict(size=9), zeroline=True, zerolinecolor="#444"),
+        template="plotly_dark", paper_bgcolor="#0d1117", plot_bgcolor="#161b22",
+        margin=dict(l=50, r=10, t=8, b=36), height=220,
+    )
+    st.plotly_chart(fig, width="stretch")
+    st.caption("Band structure along high-symmetry path  ·  ±3 eV window  ·  source: Materials Project")
+
+
+# ── Parallel coordinates ──────────────────────────────────────────────────────
+@st.cache_data(show_spinner=False)
+def get_parcoords_data(cols: tuple, limit: int = 3000) -> list[dict]:
+    safe = {
+        "density","young_modulus","k_voigt","g_voigt","bandgap",
+        "total_magnetization","formation_energy_per_atom","energy_above_hull",
+        "e_total","refractive_index","poisson_ratio","debye_temperature",
+        "thermal_conductivity","nsites","volume",
+    }
+    cols = [c for c in cols if c in safe]
+    if len(cols) < 2:
+        return []
+    where = " AND ".join(f"{c} IS NOT NULL" for c in cols)
+    q = f"SELECT mp_id, formula, {', '.join(cols)} FROM materials WHERE {where} LIMIT ?"
+    with local_db.get_conn() as conn:
+        conn.row_factory = __import__("sqlite3").Row
+        rows = conn.execute(q, (limit,)).fetchall()
+    return [dict(r) for r in rows]
+
+def render_parallel_coords(accent: str):
+    PC_PROPS = {
+        "Density (g/cm³)":          "density",
+        "Young's E (GPa)":          "young_modulus",
+        "Bulk K (GPa)":             "k_voigt",
+        "Band Gap (eV)":            "bandgap",
+        "Magnetization (μB)":       "total_magnetization",
+        "Formation E (eV/at)":      "formation_energy_per_atom",
+        "Hull Energy (eV/at)":      "energy_above_hull",
+        "Dielectric ε":             "e_total",
+        "Refr. Index":              "refractive_index",
+        "Debye Temp (K)":           "debye_temperature",
+        "Thermal κ (W/m·K)":        "thermal_conductivity",
+    }
+    all_keys = list(PC_PROPS.keys())
+    defaults = ["Density (g/cm³)", "Young's E (GPa)", "Band Gap (eV)",
+                "Formation E (eV/at)", "Dielectric ε"]
+    sel = st.multiselect("Axes", all_keys, default=defaults, key="pc_axes",
+                         label_visibility="collapsed")
+    if len(sel) < 2:
+        st.caption("Select at least 2 axes.")
+        return
+    cols = tuple(PC_PROPS[s] for s in sel)
+    rows = get_parcoords_data(cols)
+    if not rows:
+        st.caption("No compounds have all selected properties.")
+        return
+
+    n_axes = len(sel)
+    # Compute per-axis min/max for normalisation
+    ax_min = {}
+    ax_max = {}
+    for s, col in zip(sel, cols):
+        vals = [r[col] for r in rows]
+        lo, hi = min(vals), max(vals)
+        ax_min[col] = lo
+        ax_max[col] = hi if hi != lo else lo + 1.0
+
+    # Band-gap colour scale (Viridis-like: blue → green → yellow)
+    def _bg_color(bg_val: float) -> str:
+        bg_max = ax_max.get("bandgap", 10) or 10
+        t = max(0.0, min(1.0, (bg_val or 0) / bg_max))
+        r = int(68 + t * (253 - 68))
+        g = int(1  + t * (231 - 1))
+        b = int(84 + t * (37  - 84))
+        return f"rgb({r},{g},{b})"
+
+    # Current compound mp_id for highlight
+    cur_mp = st.session_state.get("mp_id", "")
+
+    MAX_TRACES = 300
+    display_rows = rows[:MAX_TRACES]
+
+    fig = go.Figure()
+
+    # Draw vertical axis lines and labels as shapes/annotations
+    for i in range(n_axes):
+        x_pos = i / (n_axes - 1) if n_axes > 1 else 0.5
+        fig.add_shape(
+            type="line", xref="paper", yref="paper",
+            x0=x_pos, y0=0.06, x1=x_pos, y1=0.96,
+            line=dict(color="#30363d", width=1.5),
+        )
+        # Tick labels: min at bottom, max at top
+        col = cols[i]
+        lo_v, hi_v = ax_min[col], ax_max[col]
+        for val, y_frac, anchor in [(lo_v, 0.04, "top"), (hi_v, 0.98, "bottom")]:
+            label = f"{val:.2g}"
+            fig.add_annotation(
+                xref="paper", yref="paper",
+                x=x_pos, y=y_frac,
+                text=label,
+                showarrow=False,
+                font=dict(size=8, color="#6e7681"),
+                yanchor=anchor,
+                xanchor="center",
+            )
+        # Axis name label above
+        fig.add_annotation(
+            xref="paper", yref="paper",
+            x=x_pos, y=1.02,
+            text=sel[i],
+            showarrow=False,
+            font=dict(size=9, color="#8b949e"),
+            yanchor="bottom",
+            xanchor="center",
+        )
+
+    # One Scatter trace per compound
+    for row in display_rows:
+        is_cur = row.get("mp_id") == cur_mp
+        norm_vals = []
+        for col in cols:
+            v = row[col]
+            norm_vals.append((v - ax_min[col]) / (ax_max[col] - ax_min[col]))
+
+        x_pts = [i / (n_axes - 1) if n_axes > 1 else 0.5 for i in range(n_axes)]
+        # Normalised y in [0.06, 0.96] paper coords → but scatter uses data coords.
+        # Use paper y directly by setting yaxis range [0,1].
+        y_pts = [0.06 + v * 0.90 for v in norm_vals]
+
+        # Build tooltip
+        tip_lines = [f"<b>{row.get('formula', row.get('mp_id',''))}</b>"]
+        for s, col in zip(sel, cols):
+            tip_lines.append(f"{s}: {row[col]:.3g}")
+        tip = "<br>".join(tip_lines) + "<extra></extra>"
+
+        bg_v = row.get("bandgap") or 0
+        line_color = accent if is_cur else _bg_color(bg_v)
+        line_w = 2.5 if is_cur else 0.8
+        opacity = 1.0 if is_cur else 0.55
+
+        fig.add_trace(go.Scatter(
+            x=x_pts, y=y_pts,
+            mode="lines",
+            line=dict(color=line_color, width=line_w),
+            opacity=opacity,
+            hovertemplate=tip,
+            name=row.get("formula", ""),
+            showlegend=False,
+        ))
+
+    fig.update_layout(
+        template="plotly_dark",
+        paper_bgcolor="#0d1117",
+        plot_bgcolor="#0d1117",
+        margin=dict(l=20, r=20, t=40, b=20),
+        height=300,
+        xaxis=dict(visible=False, range=[-0.02, 1.02]),
+        yaxis=dict(visible=False, range=[0, 1]),
+        dragmode="zoom",
+        hoverlabel=dict(
+            bgcolor="#161b22", bordercolor="#30363d",
+            font=dict(size=11, color="#e6edf3"),
+        ),
+    )
+    st.plotly_chart(fig, config={"scrollZoom": True}, width="stretch")
+    st.caption(
+        f"{len(display_rows):,} of {len(rows):,} compounds shown · "
+        "scroll to zoom · hover for compound details · "
+        "color = band gap · current compound highlighted"
+    )
 
 
 # ── Structure / data loaders ──────────────────────────────────────────────────
@@ -600,7 +1371,9 @@ def load_structure(mp_id, api_key):
         magnetization=doc.total_magnetization, ordering=ordering,
         num_magnetic_sites=getattr(doc,"num_magnetic_sites",None),
         formation_e=doc.formation_energy_per_atom, hull_e=doc.energy_above_hull,
-        decomposes_to=getattr(doc,"decomposes_to",None),
+        decomposes_to=[{"formula": str(d.formula), "amount": float(d.amount)}
+                        for d in (getattr(doc,"decomposes_to",None) or [])
+                        if hasattr(d, "formula")] or None,
         nsites=doc.nsites, volume=doc.volume, density=doc.density,
         density_atomic=getattr(doc,"density_atomic",None),
         nelements=getattr(doc,"nelements",None), elements=elems,
@@ -628,7 +1401,20 @@ def get_pubchem(formula, name): return pc.lookup(formula, name)
 
 def render_crystal(structure, accent, w=460, h=330):
     a,b,c = structure.lattice.abc
-    sup = structure * (2 if a<10 else 1, 2 if b<10 else 1, 2 if c<10 else 1)
+    n_atoms = len(structure)
+    def _r(dim, target=9.0):
+        return max(1, min(4, int(target / dim + 0.5)))
+    na, nb, nc = _r(a), _r(b), _r(c)
+    # For large c (layered materials), boost to 2 layers if atom count stays manageable
+    if nc == 1 and na * nb * 2 * n_atoms <= 250:
+        nc = 2
+    # Cap total atoms at ~300 to keep render fast
+    while na * nb * nc * n_atoms > 300:
+        if na >= nb and na >= nc and na > 1: na -= 1
+        elif nb >= nc and nb > 1: nb -= 1
+        elif nc > 1: nc -= 1
+        else: break
+    sup = structure * (na, nb, nc)
     cif = json.dumps(str(CifWriter(sup, symprec=None)))
     uid = f"v{abs(hash(structure.formula))%999999}"
     return f"""<!DOCTYPE html><html><head>
@@ -657,10 +1443,6 @@ def build_electronic(row):
         else:         desc, note = f"{bg:.3f} eV", "Insulator"
         h += sc("Band Gap", desc, f"{gtype} · {note}" if gtype else note,
                 col="bandgap", raw=bg if bg>0 else None)
-        pct   = min(bg/10*100, 100)
-        color = "#f85149" if bg==0 else "#3fb950" if bg<3 else "#d29922"
-        h += (f'<div style="background:#21262d;border-radius:3px;height:5px;margin:-1px 0 5px;">'
-              f'<div style="background:{color};width:{pct}%;height:100%;border-radius:3px;"></div></div>')
     else:
         h += na("No bandgap")
     cbm = row.get("cbm"); vbm = row.get("vbm")
@@ -697,7 +1479,8 @@ def build_mechanical(row):
         h += sc("Poisson ν", f"{nu:.4f}", "Lateral contraction", col="poisson_ratio", raw=nu)
     if au is not None:
         alab = "Isotropic" if au<0.1 else ("Mild" if au<1 else "High aniso.")
-        h += sc("Anisotropy", f"{au:.3f}", alab)
+        h += sc("Anisotropy", f"{au:.3f}", alab,
+                col="universal_anisotropy", raw=au)
     if E and ρ:
         sm = E/ρ; flag = " ★" if sm>100 else ""
         h += sc("Specific E/ρ", f"{sm:.1f}{flag}", "GPa·cm³/g")
@@ -727,7 +1510,8 @@ def build_dielectric(row):
     if e_elec:
         h += sc("Electronic ε∞", f"{e_elec:.2f}", "Optical frequencies",
                 col="e_electronic", raw=e_elec)
-    if e_ion:  h += sc("Ionic εᵢₒₙ", f"{e_ion:.2f}", "Phonon-driven")
+    if e_ion:  h += sc("Ionic εᵢₒₙ", f"{e_ion:.2f}", "Phonon-driven",
+                       col="e_ionic", raw=e_ion)
     if n:
         h += sc("Refr. Index n", f"{n:.4f}", "n = √ε_elec",
                 col="refractive_index", raw=n)
@@ -778,8 +1562,10 @@ def build_stability(row, pc_data):
     h += sh("Physical")
     dens = row.get("density")
     if dens: h += sc("Density", f"{dens:.3f} g/cm³", col="density", raw=dens)
-    if row.get("volume"):  h += sc("Cell Volume", f"{row['volume']:.2f} Å³")
-    if row.get("nsites"):  h += sc("Sites", str(row["nsites"]), "Atoms per unit cell")
+    if row.get("volume"):  h += sc("Cell Volume", f"{row['volume']:.2f} Å³",
+                                    col="volume", raw=row["volume"])
+    if row.get("nsites"):  h += sc("Sites", str(row["nsites"]), "Atoms per unit cell",
+                                    col="nsites", raw=row["nsites"])
     return h
 
 
@@ -868,11 +1654,11 @@ def note_dialog():
                              label_visibility="collapsed")
     ca, cb = st.columns([1, 1], gap="small")
     with ca:
-        if st.button("Save", type="primary", use_container_width=True):
+        if st.button("Save", type="primary", width='stretch'):
             local_db.save_note(mp_id, new_text)
             st.rerun()
     with cb:
-        if existing and st.button("Clear", use_container_width=True):
+        if existing and st.button("Clear", width='stretch'):
             local_db.save_note(mp_id, "")
             st.rerun()
 
@@ -973,7 +1759,8 @@ def render_position_chart(db_row, accent, chart_h=168):
         xaxis=dict(gridcolor="#21262d", tickfont=dict(size=9)),
         yaxis=dict(gridcolor="#21262d", tickfont=dict(size=9)),
         font=dict(size=10),
-        clickmode="event",
+        clickmode="event+select",
+        dragmode="select",
     )
     event = st.plotly_chart(fig, on_select="rerun", key="pos_chart", width="stretch")
     st.markdown(
@@ -983,7 +1770,9 @@ def render_position_chart(db_row, accent, chart_h=168):
 
     # ── Handle chart click → navigate ─────────────────────────────────────────
     if event and event.selection and event.selection.points:
-        clicked_mp = event.selection.points[0].get("customdata")
+        raw_cd = event.selection.points[0].get("customdata")
+        # Plotly may wrap scalar customdata in a list; unwrap if needed
+        clicked_mp = raw_cd[0] if isinstance(raw_cd, list) else raw_cd
         if clicked_mp and clicked_mp != cur_mp:
             clicked_row = local_db.get_material_row(clicked_mp)
             clicked_formula = clicked_row.get("formula", clicked_mp) if clicked_row else clicked_mp
@@ -1099,7 +1888,9 @@ def render_compare_page(mp_a, name_a, curated_a, mp_b, name_b, curated_b, api_ke
         st.markdown(f'<div style="font-size:0.65rem;color:{accent_a};font-weight:600;margin-bottom:3px;">{fa}</div>',
                     unsafe_allow_html=True)
         if struct_a:
-            st.components.v1.html(render_crystal(struct_a, accent_a, w=430, h=280), height=295, scrolling=False)
+            st.components.v1.html(
+                render_crystal(struct_a, accent_a, w=430, h=280),
+                height=295)
             lat = struct_a.lattice
             st.markdown(f'<div style="font-size:0.62rem;color:#8b949e;">a={lat.a:.3f} b={lat.b:.3f} c={lat.c:.3f} Å · {struct_a.num_sites} sites</div>',
                         unsafe_allow_html=True)
@@ -1108,7 +1899,7 @@ def render_compare_page(mp_a, name_a, curated_a, mp_b, name_b, curated_b, api_ke
                         'background:#161b22;border-radius:6px;color:#8b949e;">Structure unavailable</div>',
                         unsafe_allow_html=True)
         if curated_a:
-            if st.button(f"Why {fa} works", key="why_a", use_container_width=True):
+            if st.button(f"Why {fa} works", key="why_a", width='stretch'):
                 st.session_state["_why_text"]   = curated_a["why_it_works"]
                 st.session_state["_why_accent"] = accent_a
                 dlg_why()
@@ -1117,7 +1908,9 @@ def render_compare_page(mp_a, name_a, curated_a, mp_b, name_b, curated_b, api_ke
         st.markdown(f'<div style="font-size:0.65rem;color:{accent_b};font-weight:600;margin-bottom:3px;">{fb}</div>',
                     unsafe_allow_html=True)
         if struct_b:
-            st.components.v1.html(render_crystal(struct_b, accent_b, w=430, h=280), height=295, scrolling=False)
+            st.components.v1.html(
+                render_crystal(struct_b, accent_b, w=430, h=280),
+                height=295)
             lat = struct_b.lattice
             st.markdown(f'<div style="font-size:0.62rem;color:#8b949e;">a={lat.a:.3f} b={lat.b:.3f} c={lat.c:.3f} Å · {struct_b.num_sites} sites</div>',
                         unsafe_allow_html=True)
@@ -1126,7 +1919,7 @@ def render_compare_page(mp_a, name_a, curated_a, mp_b, name_b, curated_b, api_ke
                         'background:#161b22;border-radius:6px;color:#8b949e;">Structure unavailable</div>',
                         unsafe_allow_html=True)
         if curated_b:
-            if st.button(f"Why {fb} works", key="why_b", use_container_width=True):
+            if st.button(f"Why {fb} works", key="why_b", width='stretch'):
                 st.session_state["_why_text"]   = curated_b["why_it_works"]
                 st.session_state["_why_accent"] = accent_b
                 dlg_why()
@@ -1222,6 +2015,20 @@ with st.sidebar:
     search_q = st.text_input("Search", placeholder="Search formula / mp-id…",
                              label_visibility="collapsed")
 
+    # ── Fetch any MP compound ──────────────────────────────────────────────
+    with st.expander("Fetch any compound", expanded=False):
+        _fetch_in = st.text_input("MP ID", placeholder="e.g. mp-1234",
+                                  label_visibility="collapsed", key="fetch_mp_input")
+        if st.button("Go", key="fetch_mp_go") and _fetch_in.strip():
+            _fid = _fetch_in.strip()
+            st.session_state.mp_id        = _fid
+            st.session_state.compound_name = _fid
+            st.session_state.curated_data  = None
+            st.session_state.ashby_mode    = False
+            st.session_state.compare_mode  = False
+            st.query_params["mp"] = _fid
+            st.rerun()
+
     # ── Property filter search ─────────────────────────────────────────────
     with st.expander("Search by property", expanded=False):
         pf_prop = st.selectbox("Property", [
@@ -1315,7 +2122,7 @@ with st.sidebar:
                 is_active = row["mp_id"] == st.session_state.mp_id
                 if st.button(row["formula"], key=f"sr_{row['mp_id']}",
                              type="primary" if is_active else "secondary",
-                             use_container_width=True):
+                             width='stretch'):
                     st.session_state.mp_id        = row["mp_id"]
                     st.session_state.compound_name = row["formula"]
                     st.session_state.curated_data  = None
@@ -1346,7 +2153,8 @@ with st.sidebar:
                         None,
                     )
                     default_idx = (formulas.index(current_formula) + 1) if current_formula else 0
-                    chosen = st.selectbox(hdr, OPTIONS, index=default_idx, key=f"dd_{cat}")
+                    chosen = st.selectbox(hdr, OPTIONS, index=default_idx, key=f"dd_{cat}",
+                                         help=_CAT_TIPS.get(cat, ""))
                     if chosen != "—":
                         data_map = {d["formula"]: d for _, d in items}
                         name_map = {d["formula"]: n for n, d in items}
@@ -1423,6 +2231,69 @@ with st.sidebar:
         f"**{db_info['total']:,}** compounds  \n"
         f"Elastic: {db_info['with_elasticity']}  ·  ε: {db_info['with_dielectric']}"
     )
+
+    # ── My Collection ──────────────────────────────────────────────────────
+    _cur_mp = st.session_state.mp_id
+    _cur_formula = (st.session_state.curated_data["formula"]
+                    if st.session_state.curated_data
+                    else st.session_state.mp_id)
+    with st.expander(
+        f"My Collection  ({len(local_db.collection_get())})", expanded=False
+    ):
+        _in_col = local_db.collection_has(_cur_mp)
+        _btn_lbl = "Remove from collection" if _in_col else "Add to collection"
+        if st.button(_btn_lbl, key="col_toggle", width="stretch"):
+            if _in_col:
+                local_db.collection_remove(_cur_mp)
+            else:
+                local_db.collection_add(_cur_mp, _cur_formula)
+            st.rerun()
+        _col_items = local_db.collection_get()
+        if _col_items:
+            for _ci in _col_items:
+                _is_cur = _ci["mp_id"] == _cur_mp
+                _lbl = f"{'▶ ' if _is_cur else ''}{_ci['formula']}"
+                if st.button(_lbl, key=f"col_nav_{_ci['mp_id']}", width="stretch"):
+                    st.session_state.mp_id        = _ci["mp_id"]
+                    st.session_state.compound_name = _ci["formula"]
+                    st.session_state.curated_data  = None
+                    st.query_params["mp"] = _ci["mp_id"]
+                    st.rerun()
+        else:
+            st.caption("No compounds saved yet.")
+
+    # ── Prev / Next ────────────────────────────────────────────────────────
+    _all_curated = [(d["mp_id"], d["formula"])
+                    for cat in COMPOUNDS.values()
+                    for d in cat.values()]
+    _cur_idx = next((i for i, (mid, _) in enumerate(_all_curated)
+                     if mid == _cur_mp), None)
+    if _cur_idx is not None:
+        _pn1, _pn2 = st.columns(2, gap="small")
+        with _pn1:
+            if st.button("← Prev", key="nav_prev", width="stretch"):
+                _pmid, _pf = _all_curated[(_cur_idx - 1) % len(_all_curated)]
+                st.session_state.mp_id        = _pmid
+                st.session_state.compound_name = _pf
+                st.session_state.curated_data  = None
+                for _cat2, _cmpds2 in COMPOUNDS.items():
+                    for _n2, _d2 in _cmpds2.items():
+                        if _d2["mp_id"] == _pmid:
+                            st.session_state.curated_data = _d2; break
+                st.query_params["mp"] = _pmid
+                st.rerun()
+        with _pn2:
+            if st.button("Next →", key="nav_next", width="stretch"):
+                _nmid, _nf = _all_curated[(_cur_idx + 1) % len(_all_curated)]
+                st.session_state.mp_id        = _nmid
+                st.session_state.compound_name = _nf
+                st.session_state.curated_data  = None
+                for _cat2, _cmpds2 in COMPOUNDS.items():
+                    for _n2, _d2 in _cmpds2.items():
+                        if _d2["mp_id"] == _nmid:
+                            st.session_state.curated_data = _d2; break
+                st.query_params["mp"] = _nmid
+                st.rerun()
 
 
 # ── Ashby Charts ──────────────────────────────────────────────────────────────
@@ -1532,17 +2403,32 @@ formula_display = (curated_data["formula"] if curated_data
 
 badges = ""
 if db_row:
-    if db_row.get("crystal_system"): badges += badge(db_row["crystal_system"])
-    if db_row.get("space_group"):    badges += badge(db_row["space_group"])
+    if db_row.get("crystal_system"):
+        cs = db_row["crystal_system"]
+        badges += badge(cs, tooltip=_CS_TIPS.get(cs.lower(),
+            f"<b>{cs}</b> — one of the 7 crystal systems classifying all periodic structures by symmetry."))
+    if db_row.get("space_group"):
+        sg = db_row["space_group"]
+        badges += badge(sg, tooltip=_sg_tip(sg))
     theoretical = db_row.get("theoretical")
-    if theoretical == 0:   badges += badge("Experimentally observed", "green")
-    elif theoretical == 1: badges += badge("Computational only", "orange")
+    if theoretical == 0:
+        badges += badge("Experimentally observed", "green",
+                        tooltip=_BADGE_TIPS["Experimentally observed"])
+    elif theoretical == 1:
+        badges += badge("Computational only", "orange",
+                        tooltip=_BADGE_TIPS["Computational only"])
     hull = db_row.get("energy_above_hull")
     if hull is not None:
-        if hull < 0.001:   badges += badge("Stable", "green")
-        elif hull < 0.025: badges += badge(f"Metastable +{hull:.3f}", "orange")
-        else:              badges += badge(f"Unstable +{hull:.3f}", "red")
-badges += badge(selected_mp_id, "blue")
+        if hull < 0.001:
+            badges += badge("Stable", "green", tooltip=_BADGE_TIPS["Stable"])
+        elif hull < 0.025:
+            badges += badge(f"Metastable +{hull:.3f}", "orange",
+                            tooltip="Energy above the convex hull is between 0 and 0.025 eV/atom — thermodynamically unstable but often synthesizable. Many functional materials are metastable.")
+        else:
+            badges += badge(f"Unstable +{hull:.3f}", "red",
+                            tooltip=f"Energy {hull:.3f} eV/atom above the convex hull — competing phases are significantly more stable. Difficult or impossible to synthesize at ambient conditions.")
+badges += badge(selected_mp_id, "blue",
+                tooltip="Materials Project ID — a unique identifier for this compound in the Materials Project database (materialsproject.org). Hover any property for details.")
 
 def _f(v, fmt=".2f"): return format(v, fmt) if v is not None else "—"
 kpis = ""
@@ -1579,7 +2465,7 @@ with left_col:
     if structure:
         st.components.v1.html(
             render_crystal(structure, accent, w=430, h=VIEWER_H),
-            height=VIEWER_H + 16, scrolling=False)
+            height=VIEWER_H + 16)
         lat = structure.lattice
         st.markdown(
             f'<div class="lat-info">'
@@ -1614,6 +2500,44 @@ with left_col:
         note_dialog()
     st.markdown('</div>', unsafe_allow_html=True)
 
+    # ── Download buttons ──────────────────────────────────────────────────
+    st.markdown('<div class="action-row">', unsafe_allow_html=True)
+    _dl1, _dl2 = st.columns(2, gap="small")
+    with _dl1:
+        if db_row:
+            st.download_button("⬇ CSV", data=make_csv_bytes(db_row),
+                               file_name=f"{selected_mp_id}.csv",
+                               mime="text/csv", key="csv_dl")
+    with _dl2:
+        if structure:
+            _cif_str = str(CifWriter(structure, symprec=0.1))
+            st.download_button("⬇ CIF", data=_cif_str.encode(),
+                               file_name=f"{selected_mp_id}.cif",
+                               mime="chemical/x-cif", key="cif_dl")
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    # ── Find Similar ──────────────────────────────────────────────────────
+    with st.expander("Find similar compounds", expanded=False):
+        _sim = find_similar(selected_mp_id)
+        if _sim:
+            for _s in _sim:
+                _sc1, _sc2 = st.columns([3, 1], gap="small")
+                with _sc1:
+                    if st.button(_s["formula"], key=f"sim_{_s['mp_id']}",
+                                 width="stretch"):
+                        st.session_state.mp_id        = _s["mp_id"]
+                        st.session_state.compound_name = _s["formula"]
+                        st.session_state.curated_data  = None
+                        st.query_params["mp"] = _s["mp_id"]
+                        st.rerun()
+                with _sc2:
+                    st.markdown(
+                        f'<div class="sim-dist" style="padding-top:4px;">'
+                        f'd={_s["dist"]:.2f}</div>',
+                        unsafe_allow_html=True)
+        else:
+            st.caption("Not enough property data to compute similarity.")
+
     # Position in property space (compact)
     if db_row:
         st.markdown(
@@ -1622,39 +2546,103 @@ with left_col:
             unsafe_allow_html=True)
         try:
             render_position_chart(db_row, accent, chart_h=170)
-        except Exception:
-            pass
+        except Exception as _e:
+            st.caption(f"Chart error: {_e}")
 
 # ── RIGHT: property panels (grid layout) ──────────────────────────────────────
 with right_col:
     # Row 1: Electronic & Magnetic | Mechanical & Thermal
     r1c1, r1c2 = st.columns(2, gap="medium")
     with r1c1:
-        st.markdown('<div class="section-hdr">Electronic & Magnetic</div>',
-                    unsafe_allow_html=True)
+        st.markdown(section_hdr("Electronic & Magnetic"), unsafe_allow_html=True)
         st.markdown(f'<div class="sc-grid">{build_electronic(db_row)}</div>',
                     unsafe_allow_html=True)
     with r1c2:
-        st.markdown('<div class="section-hdr">Mechanical & Thermal</div>',
-                    unsafe_allow_html=True)
+        st.markdown(section_hdr("Mechanical & Thermal"), unsafe_allow_html=True)
         st.markdown(f'<div class="sc-grid">{build_mechanical(db_row)}</div>',
                     unsafe_allow_html=True)
 
     # Row 2: Dielectric & Optical | Stability & Physical
     r2c1, r2c2 = st.columns(2, gap="medium")
     with r2c1:
-        st.markdown('<div class="section-hdr">Dielectric & Optical</div>',
-                    unsafe_allow_html=True)
+        st.markdown(section_hdr("Dielectric & Optical"), unsafe_allow_html=True)
         st.markdown(f'<div class="sc-grid">{build_dielectric(db_row)}</div>',
                     unsafe_allow_html=True)
     with r2c2:
-        st.markdown('<div class="section-hdr">Stability & Physical</div>',
-                    unsafe_allow_html=True)
+        st.markdown(section_hdr("Stability & Physical"), unsafe_allow_html=True)
         st.markdown(f'<div class="sc-grid">{build_stability(db_row, pc_data)}</div>',
                     unsafe_allow_html=True)
 
+    # ── Applications + Radar (side by side) ──────────────────────────────
+    _app_col, _rad_col = st.columns([1, 1], gap="medium")
+    with _app_col:
+        st.markdown(section_hdr("Applications"), unsafe_allow_html=True)
+        st.markdown(build_applications(db_row), unsafe_allow_html=True)
+    with _rad_col:
+        st.markdown(section_hdr("Property Radar"), unsafe_allow_html=True)
+        if db_row:
+            _pinned_row = (local_db.get_material_row(st.session_state.compare_mp_id)
+                           if st.session_state.compare_mp_id else None)
+            _pinned_lbl = st.session_state.compare_name or ""
+            _pinned_acc = (st.session_state.compare_curated["accent"]
+                           if st.session_state.compare_curated else "#f9ca24")
+            st.plotly_chart(
+                build_radar_chart(db_row, _pinned_row, formula_display,
+                                  _pinned_lbl, accent, _pinned_acc),
+                width="stretch")
+            _rad_note = "Normalized 0–1  ·  Density & Stability inverted"
+            if _pinned_row:
+                _rad_note += f"  ·  vs {_pinned_lbl}"
+            st.caption(_rad_note)
+
+    # ── ML Bandgap Prediction ─────────────────────────────────────────────
+    _ml_bundle = get_ml_model()
+    if _ml_bundle and db_row:
+        _pred = ml_mod.predict_bandgap(_ml_bundle, db_row)
+        _actual = db_row.get("bandgap")
+        st.markdown(section_hdr("ML Bandgap Prediction", style="margin-top:10px;"),
+                    unsafe_allow_html=True)
+        _mc1, _mc2 = st.columns(2, gap="medium")
+        with _mc1:
+            st.markdown(
+                f'<div class="pred-card">'
+                f'<div style="font-size:0.58rem;color:#8b949e;text-transform:uppercase;'
+                f'letter-spacing:.06em;margin-bottom:3px;">Predicted</div>'
+                f'<div class="pred-val">{_pred:.3f} eV</div>'
+                f'<div class="pred-sub">GradientBoosting · '
+                f'MAE {_ml_bundle["mae"]:.3f} eV · {_ml_bundle["n_train"]:,} training pts</div>'
+                f'</div>',
+                unsafe_allow_html=True)
+        with _mc2:
+            if _actual is not None:
+                _err = abs(_pred - _actual)
+                _err_col = "#3fb950" if _err < 0.3 else "#d29922" if _err < 0.8 else "#f85149"
+                st.markdown(
+                    f'<div class="pred-card">'
+                    f'<div style="font-size:0.58rem;color:#8b949e;text-transform:uppercase;'
+                    f'letter-spacing:.06em;margin-bottom:3px;">Actual (DFT)</div>'
+                    f'<div class="pred-val" style="color:#e6edf3;">{_actual:.3f} eV</div>'
+                    f'<div class="pred-sub" style="color:{_err_col};">'
+                    f'Error: {_err:.3f} eV</div>'
+                    f'</div>',
+                    unsafe_allow_html=True)
+        # Feature importances mini bar
+        _imps = sorted(_ml_bundle["importances"].items(), key=lambda x: -x[1])
+        _imp_html = "".join(
+            f'<div style="display:flex;align-items:center;gap:6px;margin-bottom:2px;">'
+            f'<div style="font-size:0.58rem;color:#8b949e;width:140px;'
+            f'white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{lbl}</div>'
+            f'<div style="background:#21262d;border-radius:2px;height:5px;flex:1;">'
+            f'<div style="background:#58a6ff;width:{imp*100:.0f}%;height:100%;border-radius:2px;"></div>'
+            f'</div><div style="font-size:0.58rem;color:#484f58;width:30px;text-align:right;">'
+            f'{imp*100:.0f}%</div></div>'
+            for lbl, imp in _imps
+        )
+        with st.expander("Feature importances", expanded=False):
+            st.markdown(_imp_html, unsafe_allow_html=True)
+
     # XRD Pattern (full width)
-    st.markdown('<div class="section-hdr" style="margin-top:12px;">XRD Pattern (Cu Kα)</div>',
+    st.markdown(section_hdr("XRD Pattern (Cu Kα)", style="margin-top:12px;"),
                 unsafe_allow_html=True)
     if structure:
         try:
@@ -1689,7 +2677,7 @@ with right_col:
         def _get_wiki(title): return wiki_api.fetch_wiki_summary(title)
         wiki = _get_wiki(wiki_title)
         if wiki:
-            st.markdown('<div class="section-hdr" style="margin-top:12px;">About</div>',
+            st.markdown(section_hdr("About", style="margin-top:12px;"),
                         unsafe_allow_html=True)
             has_thumb = bool(wiki.get("thumbnail", {}).get("source"))
             if has_thumb:
@@ -1711,4 +2699,36 @@ with right_col:
                         unsafe_allow_html=True)
             if has_thumb:
                 with wb:
-                    st.image(wiki["thumbnail"]["source"], use_container_width=True)
+                    st.image(wiki["thumbnail"]["source"], width='stretch')
+
+    # ── Electronic Structure (DOS + Band Structure) ────────────────────────
+    st.markdown(section_hdr("Electronic Structure", style="margin-top:12px;"),
+                unsafe_allow_html=True)
+    _es1, _es2 = st.columns(2, gap="medium")
+    with _es1:
+        st.markdown('<div style="font-size:0.62rem;color:#8b949e;margin-bottom:4px;">'
+                    'Density of States</div>', unsafe_allow_html=True)
+        if st.button("Load DOS", key="load_dos"):
+            st.session_state["_load_dos"] = True
+        if st.session_state.get("_load_dos") or local_db.get_dos(selected_mp_id):
+            st.session_state["_load_dos"] = True
+            render_dos(selected_mp_id, api_key)
+        else:
+            st.caption("Click 'Load DOS' to fetch from Materials Project (requires API key).")
+    with _es2:
+        st.markdown('<div style="font-size:0.62rem;color:#8b949e;margin-bottom:4px;">'
+                    'Band Structure</div>', unsafe_allow_html=True)
+        if st.button("Load Band Structure", key="load_bs"):
+            st.session_state["_load_bs"] = True
+        if st.session_state.get("_load_bs") or local_db.get_bandstructure(selected_mp_id):
+            st.session_state["_load_bs"] = True
+            render_bandstructure(selected_mp_id, api_key, accent)
+        else:
+            st.caption("Click 'Load Band Structure' to fetch from Materials Project (requires API key).")
+
+    # ── Parallel Coordinates ───────────────────────────────────────────────
+    st.markdown(section_hdr("Parallel Coordinates Explorer", style="margin-top:12px;"),
+                unsafe_allow_html=True)
+    with st.expander("Open parallel coordinates chart", expanded=False):
+        st.caption("Select axes below — brush any axis range to filter compounds.")
+        render_parallel_coords(accent)
