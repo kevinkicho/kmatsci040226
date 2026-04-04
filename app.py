@@ -2424,6 +2424,7 @@ if st.session_state.browse_mode:
     _filter_sig = (_bq, _bcs, _db_sort, _sort_asc)
     if st.session_state.get("_browse_last_filter") != _filter_sig:
         st.session_state.browse_page = 0
+        st.session_state["browse_jump"] = 1          # sync jump input on filter reset
         st.session_state["_browse_last_filter"] = _filter_sig
     _rows, _total = _browse_query(_bq, _bcs if _bcs != "All crystal systems" else "",
                                   _db_sort, _sort_asc, st.session_state.browse_page)
@@ -2431,7 +2432,7 @@ if st.session_state.browse_mode:
 
     st.caption(f"**{_total:,}** compounds match · page "
                f"{st.session_state.browse_page + 1} of {_n_pages} · "
-               f"click a row to navigate · sort by {_sort_col}")
+               f"click a row to select, then click **View** · sort by {_sort_col}")
 
     # ── Table ─────────────────────────────────────────────────────────────────
     import pandas as pd
@@ -2443,7 +2444,6 @@ if st.session_state.browse_mode:
     _tbl_data = []
     for r in _rows:
         _tbl_data.append({
-            "▶": "▶" if r["mp_id"] == st.session_state.mp_id else "",
             "mp-id":          r["mp_id"],
             "Formula":        r["formula"] or "",
             "System":         r["crystal_system"] or "",
@@ -2462,7 +2462,6 @@ if st.session_state.browse_mode:
         _df, hide_index=True, use_container_width=True,
         on_select="rerun", selection_mode="single-row",
         column_config={
-            "▶":       st.column_config.TextColumn("", width=20),
             "mp-id":   st.column_config.TextColumn("mp-id",   width=90),
             "Formula": st.column_config.TextColumn("Formula", width=110),
             "System":  st.column_config.TextColumn("System",  width=90),
@@ -2477,23 +2476,44 @@ if st.session_state.browse_mode:
         },
         key="browse_tbl",
     )
+
+    # ── Selection bar + View button ───────────────────────────────────────────
+    _browse_selected = None
     if _sel and _sel.selection and _sel.selection.rows:
-        _row_idx = _sel.selection.rows[0]
-        _clicked = _rows[_row_idx]
-        if _clicked["mp_id"] != st.session_state.mp_id:
-            st.session_state.mp_id        = _clicked["mp_id"]
-            st.session_state.compound_name = _clicked["formula"]
+        _browse_selected = _rows[_sel.selection.rows[0]]
+
+    _sv1, _sv2 = st.columns([5, 1], gap="small")
+    with _sv1:
+        if _browse_selected:
+            st.caption(
+                f"Selected: **{_browse_selected['formula']}** · {_browse_selected['mp_id']}"
+                + (f" · Band gap {_fmt(_browse_selected['bandgap'])} eV"
+                   if _browse_selected.get('bandgap') is not None else "")
+            )
+        else:
+            st.caption("No row selected — click a row, then View.")
+    with _sv2:
+        if st.button("View →", key="browse_view", type="primary",
+                     disabled=_browse_selected is None, width="stretch"):
+            st.session_state.mp_id        = _browse_selected["mp_id"]
+            st.session_state.compound_name = _browse_selected["formula"]
             st.session_state.curated_data  = None
-            st.session_state.browse_mode   = True   # stay in browse mode
-            st.query_params["mp"] = _clicked["mp_id"]
+            st.session_state.browse_mode   = False   # exit browse → show compound details
+            st.query_params["mp"]          = _browse_selected["mp_id"]
             st.rerun()
 
     # ── Pagination ────────────────────────────────────────────────────────────
+    # Force-sync the jump input when page changes via Prev/Next (avoids widget
+    # state lag that would otherwise immediately reset browse_page back to 0).
+    if "_browse_jump_sync" in st.session_state:
+        st.session_state["browse_jump"] = st.session_state.pop("_browse_jump_sync")
+
     _pg1, _pg2, _pg3 = st.columns([1, 3, 1], gap="small")
     with _pg1:
         if st.button("← Prev", disabled=st.session_state.browse_page == 0,
                      key="browse_prev", width="stretch"):
             st.session_state.browse_page -= 1
+            st.session_state["_browse_jump_sync"] = st.session_state.browse_page + 1
             st.rerun()
     with _pg2:
         _jump = st.number_input("Page", min_value=1, max_value=_n_pages,
@@ -2506,6 +2526,7 @@ if st.session_state.browse_mode:
         if st.button("Next →", disabled=st.session_state.browse_page >= _n_pages - 1,
                      key="browse_next", width="stretch"):
             st.session_state.browse_page += 1
+            st.session_state["_browse_jump_sync"] = st.session_state.browse_page + 1
             st.rerun()
 
     st.stop()

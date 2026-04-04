@@ -1,0 +1,3 @@
+{"run": 0, "label": "baseline", "runtime_s": 8.53, "notes": "avg of 3 runs (8.65, 8.38, 8.56). Per-test setup: ~0.28-0.32s each due to init_db+migrate_db on fresh tmp_path DB", "kept": true}
+{"run": 1, "label": "session_db_savepoint_shared_model", "runtime_s": 0.75, "notes": "avg of 3 runs (0.71, 0.73, 0.80). Session-scoped DB init (init once vs 24x). Savepoint rollback for isolation. Session-scoped model_bundle (build GBR once vs 3x). 11x speedup. Remaining cost: 0.29s one-time pymatgen import+init_db, ~0.40s test execution.", "kept": true}
+{"run": 2, "label": "xdist_parallel", "runtime_s": 6.09, "notes": "pytest -n auto: worker spawn overhead dominates for this fast suite. Discarded.", "kept": false}

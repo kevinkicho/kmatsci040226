@@ -39,6 +39,14 @@ Every element in the app explains itself on hover:
 - **Sub-headers** (Electronic, Magnetic, Elastic Moduli, etc.) — method details (DFT, DFPT, Hill average, etc.)
 - **Sidebar category dropdowns** — why this material category matters and what properties make it interesting
 
+### Browse All
+- Paginated table of every compound in the local database (50 per page)
+- Filter by formula / mp-id text search and crystal system dropdown
+- Sort by any column (band gap, density, Young's modulus, formation energy, etc.) ascending or descending
+- Click a row to select it — a selection bar shows the formula, mp-id, and band gap
+- **View →** button opens the selected compound's full detail page
+- Prev / Next page buttons and direct page-jump number input
+
 ### Navigation
 - Sidebar 2-column category dropdown grid for fast compound switching
 - Full-text search by formula or mp-id
@@ -131,6 +139,11 @@ kmatsci040226/
 ├── pubchem.py       # PubChem cross-reference for experimental properties
 ├── wikipedia.py     # Wikipedia summary fetcher with local cache
 ├── matsci.db        # SQLite database (auto-created by fetch.py)
+├── tests/           # Pytest test suite (43 tests, ~0.7 s)
+│   ├── conftest.py  # Session-scoped DB + model fixtures
+│   ├── test_db.py   # Database layer tests
+│   ├── test_predict.py  # ML model tests
+│   └── test_pubchem.py  # PubChem helper tests
 ├── cache/           # JSON cache for structures and Wikipedia pages
 └── .env             # API key (MP_API_KEY=...)
 ```
@@ -167,6 +180,18 @@ After step 1 completes you can already run the app. Steps 4–5 can take 30–60
 | `scikit-learn` | ML band gap prediction model |
 | `requests` | PubChem REST API calls |
 | `sqlite3` | Built-in Python — local database (no install needed) |
+
+**Dev / test only:**
+
+| Package | Purpose |
+|---------|---------|
+| `pytest` | Test runner |
+| `pytest-xdist` | Optional parallel test execution |
+
+Run the test suite with:
+```bash
+pytest tests/
+```
 
 ---
 
