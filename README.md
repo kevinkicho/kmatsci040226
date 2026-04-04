@@ -239,6 +239,14 @@ The recipe for step 5–6 is already documented in `compounds.py`.
 
 ---
 
+## Attribution
+
+All code, architecture, and UI design in this project were written by **[Claude Code](https://claude.ai/code)** (Anthropic's AI coding assistant), working interactively with Kevin as the project owner and domain guide.
+
+This includes every module (`app.py`, `db.py`, `predict.py`, `fetch.py`, `compounds.py`, `pubchem.py`, `wikipedia.py`), the SQLite schema, all Plotly/py3Dmol visualizations, the test suite, and this README.
+
+---
+
 ## License
 
 Personal learning project — not intended for production or commercial use.
